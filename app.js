@@ -145,12 +145,135 @@ function getProducts() {
 }
 function saveProducts(products) {
   localStorage.setItem('profab_products', JSON.stringify(products));
+  cloudPush();
 }
 function getOrders() {
   return JSON.parse(localStorage.getItem('profab_orders') || '[]');
 }
 function saveOrders(orders) {
   localStorage.setItem('profab_orders', JSON.stringify(orders));
+  cloudPush();
+}
+
+// ===== CLOUD SYNC (JSONBin.io) =====
+function getCloudConfig() {
+  return {
+    key: localStorage.getItem('profab_cloud_key') || '',
+    bin: localStorage.getItem('profab_cloud_bin') || ''
+  };
+}
+function saveCloudConfig(key, bin) {
+  localStorage.setItem('profab_cloud_key', key.trim());
+  localStorage.setItem('profab_cloud_bin', bin.trim());
+}
+
+let _pushTimer = null;
+function cloudPush() {
+  // Debounce — wait 800ms after last save before pushing
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(async () => {
+    const { key, bin } = getCloudConfig();
+    if (!key || !bin) return;
+    try {
+      await fetch(`https://api.jsonbin.io/v3/b/${bin}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+        body: JSON.stringify({ orders: getOrders(), products: getProducts() })
+      });
+      setSyncStatus('Synced ✓', 'ok');
+    } catch {
+      setSyncStatus('Sync failed', 'err');
+    }
+  }, 800);
+}
+
+async function cloudPull() {
+  const { key, bin } = getCloudConfig();
+  if (!key || !bin) return false;
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}/latest`, {
+      headers: { 'X-Master-Key': key }
+    });
+    if (!res.ok) return false;
+    const { record } = await res.json();
+    if (record.orders)   localStorage.setItem('profab_orders',   JSON.stringify(record.orders));
+    if (record.products) localStorage.setItem('profab_products', JSON.stringify(record.products));
+    setSyncStatus('Synced ✓', 'ok');
+    return true;
+  } catch {
+    setSyncStatus('Sync failed', 'err');
+    return false;
+  }
+}
+
+async function createNewBin() {
+  const key = document.getElementById('cloudKeyInput')?.value.trim();
+  if (!key) { setSyncStatus('Enter your API key first.', 'err'); return; }
+  setSyncStatus('Creating bin…', '');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': key,
+        'X-Bin-Name': 'Pro-Fab 3D',
+        'X-Bin-Private': 'true'
+      },
+      body: JSON.stringify({ orders: getOrders(), products: getProducts() })
+    });
+    if (!res.ok) { setSyncStatus('Invalid API key.', 'err'); return; }
+    const { metadata } = await res.json();
+    document.getElementById('cloudBinInput').value = metadata.id;
+    saveCloudConfig(key, metadata.id);
+    setSyncStatus('Bin created & synced ✓', 'ok');
+    updateSyncBadge();
+  } catch {
+    setSyncStatus('Could not reach JSONBin.', 'err');
+  }
+}
+
+async function saveCloudSettings() {
+  const key = document.getElementById('cloudKeyInput')?.value.trim();
+  const bin = document.getElementById('cloudBinInput')?.value.trim();
+  if (!key || !bin) { setSyncStatus('Both fields are required.', 'err'); return; }
+  saveCloudConfig(key, bin);
+  setSyncStatus('Connecting…', '');
+  const ok = await cloudPull();
+  if (ok) {
+    updateSyncBadge();
+    renderOrders?.();
+    showToast('Cloud sync enabled ✓');
+  } else {
+    setSyncStatus('Connection failed — check key & bin ID.', 'err');
+  }
+}
+
+async function manualSync() {
+  setSyncStatus('Syncing…', '');
+  const ok = await cloudPull();
+  if (ok) {
+    if (typeof window['renderOrders'] === 'function') window['renderOrders']();
+    if (typeof window['renderManage'] === 'function') window['renderManage']();
+    renderProducts();
+    showToast('Synced from cloud ✓');
+  }
+}
+
+function setSyncStatus(msg, type) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'sync-status' + (type === 'ok' ? ' sync-ok' : type === 'err' ? ' sync-err' : '');
+}
+
+function updateSyncBadge() {
+  const { key, bin } = getCloudConfig();
+  const badge = document.getElementById('syncBadge');
+  if (badge) badge.style.display = key && bin ? 'inline-block' : 'none';
+  const keyEl = document.getElementById('cloudKeyInput');
+  const binEl = document.getElementById('cloudBinInput');
+  if (keyEl) keyEl.value = key;
+  if (binEl) binEl.value = bin;
 }
 function getCart() {
   return JSON.parse(localStorage.getItem('profab_cart') || '[]');
@@ -665,7 +788,8 @@ function showToast(msg) {
 }
 
 // ===== INIT =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await cloudPull();
   renderProducts();
   updateCartUI();
   updateUserNav();

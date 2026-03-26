@@ -190,6 +190,29 @@
         <p>Logging out will require the password to access admin again.</p>
         <button class="logout-btn" onclick="logout()">Log Out</button>
       </div>
+
+      <div class="pwd-section" style="margin-top:20px;">
+        <h3>Cloud Sync <span class="sync-badge" id="syncBadge" style="display:none;">● Live</span></h3>
+        <p>Sync orders and products across devices using <strong>JSONBin.io</strong> (free). <a href="https://jsonbin.io" target="_blank" rel="noopener">Create a free account →</a></p>
+        <div style="display:flex;flex-direction:column;gap:14px;max-width:480px;margin-top:16px;">
+          <div class="form-group">
+            <label>Master API Key</label>
+            <input type="password" id="cloudKeyInput" placeholder="$2b$10$..." autocomplete="off" />
+            <span style="font-size:12px;color:var(--text3);margin-top:4px;">Found in JSONBin → Account → API Keys</span>
+          </div>
+          <div class="form-group">
+            <label>Bin ID</label>
+            <input type="text" id="cloudBinInput" placeholder="64a3f..." autocomplete="off" />
+            <span style="font-size:12px;color:var(--text3);margin-top:4px;">Leave blank and click "Create New Bin" to generate one automatically.</span>
+          </div>
+          <div class="login-error" id="syncStatus" style="position:static;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-primary" style="align-self:flex-start;" onclick="saveCloudSettings()">Save &amp; Connect</button>
+            <button class="tab-btn" onclick="createNewBin()">+ Create New Bin</button>
+            <button class="tab-btn" onclick="manualSync()">↺ Sync Now</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -395,10 +418,12 @@
       const orders = getOrders();
       const badge = document.getElementById('orderBadge');
       if (badge && orders.length > 0) badge.textContent = `(${orders.length})`;
+      updateSyncBadge();
     }
 
     // On load — check session
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      await cloudPull();
       if (isAuthenticated()) {
         document.getElementById('loginGate').style.display = 'none';
         document.querySelectorAll('.admin-content').forEach(el => el.classList.add('unlocked'));
