@@ -14,10 +14,11 @@ function hashPwd(pwd) { return btoa(encodeURIComponent(pwd)); }
 function registerUser(e) {
   e.preventDefault();
   const form = e.target;
-  const name = form.regName.value.trim();
-  const email = form.regEmail.value.trim().toLowerCase();
-  const pwd = form.regPwd.value;
-  const err = document.getElementById('regError');
+  const firstName = form.regFirstName.value.trim();
+  const lastName  = form.regLastName.value.trim();
+  const email     = form.regEmail.value.trim().toLowerCase();
+  const pwd       = form.regPwd.value;
+  const err       = document.getElementById('regError');
 
   const users = getUsers();
   if (users.find(u => u.email === email)) {
@@ -25,15 +26,26 @@ function registerUser(e) {
     err.classList.add('visible');
     return;
   }
-  const user = { id: 'usr-' + Date.now().toString(36), name, email, pwHash: hashPwd(pwd) };
+  const profile = {
+    firstName, lastName, email,
+    phone:   form.regPhone?.value.trim()   || '',
+    address: form.regAddress?.value.trim() || '',
+    city:    form.regCity?.value.trim()    || '',
+    state:   form.regState?.value.trim()   || '',
+    zip:     form.regZip?.value.trim()     || ''
+  };
+  const user = {
+    id: 'usr-' + Date.now().toString(36),
+    name: `${firstName} ${lastName}`,
+    email, pwHash: hashPwd(pwd), profile
+  };
   users.push(user);
   saveUsers(users);
-  const session = { id: user.id, name: user.name, email: user.email };
-  saveUserSession(session);
+  saveUserSession({ id: user.id, name: user.name, email: user.email });
   err.classList.remove('visible');
   closeAuth();
   updateUserNav();
-  showToast(`Welcome, ${name}! ✓`);
+  showToast(`Welcome, ${firstName}! ✓`);
 }
 
 function loginUser(e) {
@@ -519,24 +531,31 @@ function closeModal() {
 // ===== CHECKOUT =====
 function checkout() {
   if (getCart().length === 0) return;
-  toggleCart();
-  buildOrderSummary();
-  // Pre-fill form from saved profile
   const session = getUserSession();
-  if (session) {
-    const user = getUsers().find(u => u.id === session.id);
-    const pro = user?.profile || {};
-    const form = document.getElementById('orderForm');
-    const nameParts = session.name.split(' ');
-    form.firstName.value = pro.firstName || nameParts[0] || '';
-    form.lastName.value  = pro.lastName  || nameParts.slice(1).join(' ') || '';
-    form.email.value     = pro.email     || session.email || '';
-    form.phone.value     = pro.phone     || '';
-    form.address.value   = pro.address   || '';
-    form.city.value      = pro.city      || '';
-    form.state.value     = pro.state     || '';
-    form.zip.value       = pro.zip       || '';
+  if (!session) {
+    toggleCart();
+    openAuth('login');
+    return;
   }
+  toggleCart();
+  const user = getUsers().find(u => u.id === session.id);
+  const pro = user?.profile || {};
+  const addrEl = document.getElementById('confirmAddress');
+  if (addrEl) {
+    const hasAddr = pro.address && pro.city && pro.state;
+    addrEl.innerHTML = `
+      <div class="confirm-ship-block">
+        <div class="confirm-ship-label">Shipping to</div>
+        <div class="confirm-ship-info">
+          <strong>${pro.firstName || session.name} ${pro.lastName || ''}</strong><br/>
+          ${hasAddr
+            ? `${pro.address}, ${pro.city}, ${pro.state} ${pro.zip}`
+            : `<span style="color:var(--accent3)">No address on file — <a href="#" onclick="closeOrder();openAuth('login');return false;">update your account</a></span>`}
+          ${pro.phone ? `<br/>${pro.phone}` : ''}
+        </div>
+      </div>`;
+  }
+  buildOrderSummary();
   document.getElementById('orderModal').classList.add('open');
   document.getElementById('orderOverlay').classList.add('open');
 }
@@ -581,6 +600,11 @@ function submitOrder(e) {
   e.preventDefault();
   const form = e.target;
   const data = Object.fromEntries(new FormData(form));
+  const session = getUserSession();
+  if (!session) { closeOrder(); openAuth('login'); return; }
+
+  const user = getUsers().find(u => u.id === session.id);
+  const pro = user?.profile || {};
   const cart = getCart();
   const products = getProducts();
 
@@ -589,12 +613,12 @@ function submitOrder(e) {
     date: new Date().toISOString(),
     status: 'New',
     customer: {
-      name: `${data.firstName} ${data.lastName}`,
-      email: data.email,
-      phone: data.phone || '',
-      address: `${data.address}, ${data.city}, ${data.state} ${data.zip}`
+      name:    pro.firstName ? `${pro.firstName} ${pro.lastName}` : session.name,
+      email:   pro.email    || session.email,
+      phone:   pro.phone    || '',
+      address: pro.address  ? `${pro.address}, ${pro.city}, ${pro.state} ${pro.zip}` : ''
     },
-    userId: getUserSession()?.id || null,
+    userId: session.id,
     notes: data.notes || '',
     paymentMethod: data.paymentMethod || 'cash',
     meritsTotal: Math.round(cartTotal() * 100),
@@ -608,21 +632,6 @@ function submitOrder(e) {
   const orders = getOrders();
   orders.unshift(order);
   saveOrders(orders);
-  // Save shipping info to user profile for next time
-  const session = getUserSession();
-  if (session) {
-    const users = getUsers();
-    const user = users.find(u => u.id === session.id);
-    if (user) {
-      user.profile = {
-        firstName: data.firstName, lastName: data.lastName,
-        email: data.email, phone: data.phone || '',
-        address: data.address, city: data.city, state: data.state, zip: data.zip
-      };
-      saveUsers(users);
-    }
-  }
-
   saveCart([]);
   updateCartUI();
 
@@ -631,7 +640,7 @@ function submitOrder(e) {
     ? `Merits (${order.meritsTotal.toLocaleString()} merits)`
     : 'Cash';
   document.getElementById('successMsg').textContent =
-    `Thanks, ${data.firstName}! Order ${order.id} placed. Payment: ${payLabel}. We'll reach out to ${data.email} to confirm.`;
+    `Order ${order.id} placed! Payment: ${payLabel}. We'll reach out to ${order.customer.email} to confirm.`;
   document.getElementById('successModal').classList.add('open');
   document.getElementById('successOverlay').classList.add('open');
   form.reset();
@@ -640,6 +649,60 @@ function submitOrder(e) {
 function closeSuccess() {
   document.getElementById('successModal').classList.remove('open');
   document.getElementById('successOverlay').classList.remove('open');
+}
+
+// ===== CUSTOM ORDERS =====
+function openCustomOrder() {
+  const session = getUserSession();
+  if (!session) {
+    openAuth('login');
+    return;
+  }
+  document.getElementById('customModal').classList.add('open');
+  document.getElementById('customOverlay').classList.add('open');
+}
+
+function closeCustomOrder() {
+  document.getElementById('customModal')?.classList.remove('open');
+  document.getElementById('customOverlay')?.classList.remove('open');
+}
+
+function submitCustomOrder(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form));
+  const session = getUserSession();
+  if (!session) { closeCustomOrder(); openAuth('login'); return; }
+
+  const user = getUsers().find(u => u.id === session.id);
+  const pro = user?.profile || {};
+
+  const request = {
+    id: 'CUS-' + Date.now().toString(36).toUpperCase(),
+    type: 'custom',
+    date: new Date().toISOString(),
+    status: 'New',
+    customer: {
+      name:  pro.firstName ? `${pro.firstName} ${pro.lastName}` : session.name,
+      email: pro.email || session.email,
+      phone: pro.phone || '',
+      address: pro.address ? `${pro.address}, ${pro.city}, ${pro.state} ${pro.zip}` : ''
+    },
+    userId: session.id,
+    description: data.description,
+    paymentMethod: data.paymentMethod || 'cash'
+  };
+
+  const orders = getOrders();
+  orders.unshift(request);
+  saveOrders(orders);
+
+  closeCustomOrder();
+  form.reset();
+  document.getElementById('successMsg').textContent =
+    `Custom request ${request.id} submitted! We'll review your description and reach out to ${request.customer.email} with a quote.`;
+  document.getElementById('successModal').classList.add('open');
+  document.getElementById('successOverlay').classList.add('open');
 }
 
 // ===== RECEIPT =====

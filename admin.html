@@ -52,6 +52,7 @@
       <button class="tab-btn active" onclick="switchTab('add')">+ Add Product</button>
       <button class="tab-btn" onclick="switchTab('manage')">Manage Products</button>
       <button class="tab-btn" onclick="switchTab('orders')">Orders <span id="orderBadge"></span></button>
+      <button class="tab-btn" onclick="switchTab('custom')">Custom Requests <span id="customBadge"></span></button>
       <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
     </div>
 
@@ -159,6 +160,16 @@
         <div class="empty-icon">📋</div>
         <h3>No orders yet</h3>
         <p>Orders will appear here once customers check out.</p>
+      </div>
+    </div>
+
+    <!-- CUSTOM REQUESTS TAB -->
+    <div class="tab-panel" id="tab-custom">
+      <div class="custom-requests-list" id="customList"></div>
+      <div id="customEmpty" style="display:none;" class="empty-state">
+        <div class="empty-icon">🖨️</div>
+        <h3>No custom requests yet</h3>
+        <p>When customers request custom parts, they'll appear here.</p>
       </div>
     </div>
 
@@ -293,13 +304,62 @@
     // ===== TABS =====
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['add', 'manage', 'orders', 'settings'];
+        const tabs = ['add', 'manage', 'orders', 'custom', 'settings'];
         b.classList.toggle('active', tabs[i] === tab);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + tab).classList.add('active');
       if (tab === 'manage') renderManage();
       if (tab === 'orders') renderOrders();
+      if (tab === 'custom') renderCustom();
+    }
+
+    // ===== CUSTOM REQUESTS =====
+    function renderCustom() {
+      const list  = document.getElementById('customList');
+      const empty = document.getElementById('customEmpty');
+      const reqs  = getOrders().filter(o => o.type === 'custom');
+      const badge = document.getElementById('customBadge');
+      if (badge) badge.textContent = reqs.length > 0 ? `(${reqs.length})` : '';
+      if (reqs.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      list.innerHTML = reqs.map(r => {
+        const date = new Date(r.date).toLocaleString();
+        const isMerits = r.paymentMethod === 'merits';
+        const statusClass = r.status === 'Complete' ? 'status--complete' : 'status--new';
+        return `
+          <div class="custom-request-card">
+            <div class="order-card-header">
+              <span class="order-status ${statusClass}">${r.status}</span>
+              <span class="order-id">${r.id}</span>
+              <span class="order-date">${date}</span>
+            </div>
+            <div class="order-customer">
+              ${r.customer.name}
+              <span class="order-payment-badge order-payment-badge--${r.paymentMethod || 'cash'}">${isMerits ? '⭐ Merits' : '💵 Cash'}</span>
+            </div>
+            <div class="order-customer-detail">
+              ${r.customer.email}${r.customer.phone ? ' · ' + r.customer.phone : ''}
+              ${r.customer.address ? '<br/>' + r.customer.address : ''}
+            </div>
+            <div class="custom-description">${r.description}</div>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              ${r.status !== 'Complete'
+                ? `<button class="complete-btn" onclick="completeCustom('${r.id}')">✓ Mark Complete</button>`
+                : '<span class="order-complete-label">✓ Completed</span>'}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function completeCustom(id) {
+      const orders = getOrders();
+      const r = orders.find(o => o.id === id);
+      if (r) { r.status = 'Complete'; saveOrders(orders); renderCustom(); showToast('Marked complete ✓'); }
     }
 
     // ===== PRODUCTS =====
@@ -375,7 +435,7 @@
     function renderOrders() {
       const list = document.getElementById('ordersList');
       const empty = document.getElementById('ordersEmpty');
-      const orders = getOrders();
+      const orders = getOrders().filter(o => o.type !== 'custom');
       const badge = document.getElementById('orderBadge');
       if (badge) badge.textContent = orders.length > 0 ? `(${orders.length})` : '';
 
@@ -427,9 +487,13 @@
 
     // ===== INIT =====
     function initAdmin() {
-      const orders = getOrders();
-      const badge = document.getElementById('orderBadge');
-      if (badge && orders.length > 0) badge.textContent = `(${orders.length})`;
+      const all = getOrders();
+      const orders  = all.filter(o => o.type !== 'custom');
+      const customs = all.filter(o => o.type === 'custom');
+      const orderBadge  = document.getElementById('orderBadge');
+      const customBadge = document.getElementById('customBadge');
+      if (orderBadge  && orders.length  > 0) orderBadge.textContent  = `(${orders.length})`;
+      if (customBadge && customs.length > 0) customBadge.textContent = `(${customs.length})`;
       updateSyncBadge();
     }
 

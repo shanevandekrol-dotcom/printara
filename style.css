@@ -904,6 +904,49 @@ a:hover { color: var(--accent2); }
   .login-box { padding: 32px 20px; }
 }
 
+/* ===== CUSTOM ORDER CTA ===== */
+.section--custom-cta { padding: 40px 0; }
+.custom-cta-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: linear-gradient(135deg, rgba(124,106,247,0.12), rgba(78,201,240,0.08));
+  border: 1px solid rgba(124,106,247,0.25);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px;
+  flex-wrap: wrap;
+}
+.custom-cta-icon { font-size: 48px; flex-shrink: 0; }
+.custom-cta-text { flex: 1; min-width: 200px; }
+.custom-cta-text h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.custom-cta-text p  { color: var(--text2); font-size: 14px; }
+
+/* ===== CUSTOM ORDER MODAL ===== */
+.modal--custom { max-width: 520px; padding: 36px 32px; }
+.custom-modal-icon { font-size: 40px; margin-bottom: 8px; }
+.modal-sub { color: var(--text2); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+
+/* ===== CUSTOM REQUEST CARDS (admin) ===== */
+.custom-request-card {
+  background: var(--surface);
+  border: 1px solid rgba(124,106,247,0.2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.custom-description {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--surface2);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ===== CLOUD SYNC ===== */
 .sync-badge {
   display: inline-block;
@@ -992,10 +1035,48 @@ a:hover { color: var(--accent2); }
 }
 .nav-logout-btn:hover { color: var(--accent3); border-color: var(--accent3); }
 
+/* ===== CONFIRM ORDER MODAL ===== */
+.modal--confirm {
+  max-width: 480px;
+  padding: 32px 28px;
+}
+.confirm-ship-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.confirm-ship-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.confirm-ship-info {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
 /* ===== AUTH MODAL ===== */
 .modal--auth {
-  max-width: 420px;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
   padding: 36px 32px;
+}
+.auth-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text3);
+  margin: 16px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 .auth-tabs {
   display: flex;
