@@ -53,6 +53,9 @@
       <button class="tab-btn" onclick="switchTab('manage')">Manage Products</button>
       <button class="tab-btn" onclick="switchTab('orders')">Orders <span id="orderBadge"></span></button>
       <button class="tab-btn" onclick="switchTab('custom')">Custom Requests <span id="customBadge"></span></button>
+      <button class="tab-btn" onclick="switchTab('users')">Accounts <span id="usersBadge"></span></button>
+      <button class="tab-btn" onclick="switchTab('sales')">🏷️ Sales</button>
+      <button class="tab-btn" onclick="switchTab('clockin')">⏱️ Hours</button>
       <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
     </div>
 
@@ -170,6 +173,63 @@
         <div class="empty-icon">🖨️</div>
         <h3>No custom requests yet</h3>
         <p>When customers request custom parts, they'll appear here.</p>
+      </div>
+    </div>
+
+    <!-- USERS TAB -->
+    <div class="tab-panel" id="tab-users">
+      <div class="users-list" id="usersList"></div>
+      <div id="usersEmpty" style="display:none;" class="empty-state">
+        <div class="empty-icon">👤</div>
+        <h3>No accounts yet</h3>
+        <p>Customer accounts will appear here once someone signs up.</p>
+      </div>
+    </div>
+
+    <!-- SALES TAB -->
+    <div class="tab-panel" id="tab-sales">
+      <h3 style="margin-bottom:6px;">Sales &amp; Discounts</h3>
+      <p style="color:var(--text2);font-size:14px;margin-bottom:20px;">Enter a sale price below to show it in the shop with a badge and strikethrough. Leave blank or delete to remove the sale.</p>
+      <div class="sales-list" id="salesList"></div>
+      <div id="salesEmpty" style="display:none;" class="empty-state">
+        <div class="empty-icon">🏷️</div>
+        <p>No products yet. Add products first.</p>
+      </div>
+    </div>
+
+    <!-- CLOCK-IN TAB -->
+    <div class="tab-panel" id="tab-clockin">
+      <div class="clockin-top">
+        <div class="clockin-status-card" id="clockinStatusCard">
+          <div class="clockin-clock-icon">⏱️</div>
+          <div class="clockin-status-label" id="clockinStatusLabel">Clocked Out</div>
+          <div class="clockin-elapsed" id="clockinElapsed" style="display:none;"></div>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn-primary" id="clockinBtn" onclick="clockIn()">Clock In</button>
+            <button class="btn-secondary" id="clockoutBtn" onclick="clockOut()" style="display:none;">Clock Out</button>
+          </div>
+        </div>
+        <div class="clockin-summary-card">
+          <div class="clockin-summary-title">Summary</div>
+          <div class="clockin-summary-row">
+            <span>Today</span><span id="ciSummaryToday">0h 0m</span>
+          </div>
+          <div class="clockin-summary-row">
+            <span>This Week</span><span id="ciSummaryWeek">0h 0m</span>
+          </div>
+          <div class="clockin-summary-row">
+            <span>This Month</span><span id="ciSummaryMonth">0h 0m</span>
+          </div>
+          <div class="clockin-summary-row clockin-summary-total">
+            <span>All Time</span><span id="ciSummaryAll">0h 0m</span>
+          </div>
+        </div>
+      </div>
+      <h3 style="margin:24px 0 12px;">Time Log</h3>
+      <div class="clockin-log" id="clockinLog"></div>
+      <div id="clockinLogEmpty" style="display:none;color:var(--text3);font-size:14px;text-align:center;padding:30px 0;">No sessions recorded yet.</div>
+      <div style="margin-top:18px;">
+        <button class="delete-btn" onclick="clearAllSessions()" style="font-size:13px;">🗑️ Clear All Log</button>
       </div>
     </div>
 
@@ -426,7 +486,7 @@
     // ===== TABS =====
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['add', 'manage', 'orders', 'custom', 'settings'];
+        const tabs = ['add', 'manage', 'orders', 'custom', 'users', 'sales', 'clockin', 'settings'];
         b.classList.toggle('active', tabs[i] === tab);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -434,6 +494,61 @@
       if (tab === 'manage') renderManage();
       if (tab === 'orders') renderOrders();
       if (tab === 'custom') renderCustom();
+      if (tab === 'users')  renderUsers();
+      if (tab === 'sales')   renderSales();
+      if (tab === 'clockin') renderClockIn();
+    }
+
+    // ===== SALES =====
+    function renderSales() {
+      const list  = document.getElementById('salesList');
+      const empty = document.getElementById('salesEmpty');
+      const products = getProducts();
+      if (products.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      list.innerHTML = products.map(p => {
+        const onSale = p.salePrice != null && p.salePrice < p.price;
+        return `
+          <div class="sale-row" id="sale-row-${p.id}">
+            <div class="sale-row-name">${p.name}</div>
+            <div class="sale-row-price">Regular: $${Number(p.price).toFixed(2)}</div>
+            ${onSale ? `<span class="sale-active-badge">🏷️ On Sale: $${Number(p.salePrice).toFixed(2)}</span>` : ''}
+            <input class="sale-row-input" type="number" min="0" step="0.01"
+              id="sale-input-${p.id}"
+              placeholder="Sale price…"
+              value="${onSale ? Number(p.salePrice).toFixed(2) : ''}" />
+            <button class="btn-primary" style="padding:6px 14px;font-size:13px;" onclick="setSale('${p.id}')">Set Sale</button>
+            ${onSale ? `<button class="delete-btn" onclick="clearSale('${p.id}')">Clear</button>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function setSale(id) {
+      const input = document.getElementById('sale-input-' + id);
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val <= 0) { showToast('Enter a valid sale price.'); return; }
+      const products = getProducts();
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      if (val >= p.price) { showToast('Sale price must be lower than regular price ($' + Number(p.price).toFixed(2) + ').'); return; }
+      p.salePrice = val;
+      saveProducts(products);
+      showToast(`Sale set: ${p.name} → $${val.toFixed(2)} ✓`);
+      renderSales();
+    }
+
+    function clearSale(id) {
+      const products = getProducts();
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      delete p.salePrice;
+      saveProducts(products);
+      showToast(`Sale removed for ${p.name}.`);
+      renderSales();
     }
 
     // ===== CUSTOM REQUESTS =====
@@ -475,6 +590,41 @@
             </div>
           </div>`;
       }).join('');
+    }
+
+    // ===== USERS =====
+    function renderUsers() {
+      const list  = document.getElementById('usersList');
+      const empty = document.getElementById('usersEmpty');
+      const users = getUsers();
+      const badge = document.getElementById('usersBadge');
+      if (badge) badge.textContent = users.length > 0 ? `(${users.length})` : '';
+      if (users.length === 0) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      list.innerHTML = users.map(u => {
+        const date = u.registeredAt
+          ? new Date(u.registeredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : '—';
+        const orderCount = getOrders().filter(o => o.userId === u.id && o.type !== 'custom').length;
+        const customCount = getOrders().filter(o => o.userId === u.id && o.type === 'custom').length;
+        return `
+          <div class="user-card">
+            <div class="user-card-avatar">${u.name.charAt(0).toUpperCase()}</div>
+            <div class="user-card-info">
+              <div class="user-card-name">${u.name}</div>
+              <div class="user-card-email">${u.email}${u.profile?.phone ? ' · ' + u.profile.phone : ''}</div>
+              <div class="user-card-meta">Joined ${date} · ${orderCount} order${orderCount!==1?'s':''} · ${customCount} custom request${customCount!==1?'s':''}</div>
+            </div>
+            <button class="delete-btn" onclick="deleteUser('${u.id}')">Remove</button>
+          </div>`;
+      }).join('');
+    }
+
+    function deleteUser(id) {
+      if (!confirm('Remove this account? They will be signed out immediately.')) return;
+      saveUsers(getUsers().filter(u => u.id !== id));
+      renderUsers();
+      showToast('Account removed.');
     }
 
     function completeCustom(id) {
@@ -605,6 +755,156 @@
       }
     }
 
+    // ===== CLOCK-IN =====
+    let ciTimer = null;
+
+    function getCISessions() {
+      return JSON.parse(localStorage.getItem('profab_ci_sessions') || '[]');
+    }
+    function saveCISessions(s) {
+      localStorage.setItem('profab_ci_sessions', JSON.stringify(s));
+    }
+    function getCIActive() {
+      return JSON.parse(localStorage.getItem('profab_ci_active') || 'null');
+    }
+    function saveCIActive(a) {
+      if (a) localStorage.setItem('profab_ci_active', JSON.stringify(a));
+      else localStorage.removeItem('profab_ci_active');
+    }
+
+    function fmtDuration(ms) {
+      const total = Math.floor(ms / 1000);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+    function fmtDurationHM(ms) {
+      const total = Math.floor(ms / 60000);
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${h}h ${m}m`;
+    }
+
+    function clockIn() {
+      if (getCIActive()) return;
+      saveCIActive({ start: new Date().toISOString() });
+      renderClockIn();
+      showToast('Clocked in ✓');
+    }
+
+    function clockOut() {
+      const active = getCIActive();
+      if (!active) return;
+      const end = new Date().toISOString();
+      const ms = new Date(end) - new Date(active.start);
+      if (ms < 1000) { showToast('Clock-in too short.'); return; }
+      const sessions = getCISessions();
+      sessions.unshift({ start: active.start, end, ms });
+      saveCISessions(sessions);
+      saveCIActive(null);
+      clearInterval(ciTimer);
+      ciTimer = null;
+      renderClockIn();
+      showToast(`Clocked out — ${fmtDuration(ms)} logged ✓`);
+    }
+
+    function clearAllSessions() {
+      if (!confirm('Clear entire time log? This cannot be undone.')) return;
+      saveCISessions([]);
+      renderClockIn();
+      showToast('Time log cleared.');
+    }
+
+    function renderClockIn() {
+      const active = getCIActive();
+      const sessions = getCISessions();
+
+      // Buttons
+      document.getElementById('clockinBtn').style.display   = active ? 'none' : 'inline-flex';
+      document.getElementById('clockoutBtn').style.display  = active ? 'inline-flex' : 'none';
+
+      // Status label
+      const label   = document.getElementById('clockinStatusLabel');
+      const elapsed = document.getElementById('clockinElapsed');
+      const card    = document.getElementById('clockinStatusCard');
+      if (active) {
+        label.textContent = 'Clocked In';
+        card.classList.add('clockin-active');
+        elapsed.style.display = 'block';
+        clearInterval(ciTimer);
+        ciTimer = setInterval(() => {
+          const ms = Date.now() - new Date(active.start);
+          elapsed.textContent = fmtDuration(ms);
+        }, 1000);
+        elapsed.textContent = fmtDuration(Date.now() - new Date(active.start));
+      } else {
+        label.textContent = 'Clocked Out';
+        card.classList.remove('clockin-active');
+        elapsed.style.display = 'none';
+        clearInterval(ciTimer);
+        ciTimer = null;
+      }
+
+      // Summary
+      const now = new Date();
+      const todayStr  = now.toDateString();
+      const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      let msToday = 0, msWeek = 0, msMonth = 0, msAll = 0;
+      sessions.forEach(s => {
+        const d = new Date(s.start);
+        msAll += s.ms;
+        if (d.toDateString() === todayStr) msToday += s.ms;
+        if (d >= weekStart) msWeek += s.ms;
+        if (d >= monthStart) msMonth += s.ms;
+      });
+      document.getElementById('ciSummaryToday').textContent = fmtDurationHM(msToday);
+      document.getElementById('ciSummaryWeek').textContent  = fmtDurationHM(msWeek);
+      document.getElementById('ciSummaryMonth').textContent = fmtDurationHM(msMonth);
+      document.getElementById('ciSummaryAll').textContent   = fmtDurationHM(msAll);
+
+      // Log
+      const log   = document.getElementById('clockinLog');
+      const empty = document.getElementById('clockinLogEmpty');
+      if (sessions.length === 0) {
+        log.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      // Group by date
+      const groups = {};
+      sessions.forEach(s => {
+        const key = new Date(s.start).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+      });
+
+      log.innerHTML = Object.entries(groups).map(([date, rows]) => {
+        const dayTotal = rows.reduce((a, r) => a + r.ms, 0);
+        return `
+          <div class="ci-day-group">
+            <div class="ci-day-header">
+              <span>${date}</span>
+              <span class="ci-day-total">${fmtDurationHM(dayTotal)}</span>
+            </div>
+            ${rows.map(r => {
+              const inT  = new Date(r.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+              const outT = new Date(r.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+              return `<div class="ci-row">
+                <span class="ci-row-time">${inT} → ${outT}</span>
+                <span class="ci-row-dur">${fmtDuration(r.ms)}</span>
+              </div>`;
+            }).join('')}
+          </div>`;
+      }).join('');
+    }
+
     // ===== INIT =====
     function initAdmin() {
       const all = getOrders();
@@ -614,7 +914,12 @@
       const customBadge = document.getElementById('customBadge');
       if (orderBadge  && orders.length  > 0) orderBadge.textContent  = `(${orders.length})`;
       if (customBadge && customs.length > 0) customBadge.textContent = `(${customs.length})`;
+      const usersBadge = document.getElementById('usersBadge');
+      const users = getUsers();
+      if (usersBadge && users.length > 0) usersBadge.textContent = `(${users.length})`;
       updateSyncBadge();
+      // Resume clock-in timer if currently clocked in
+      if (getCIActive()) renderClockIn();
     }
 
     // On load — check session

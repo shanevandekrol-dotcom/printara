@@ -2,7 +2,10 @@
 function getUsers() {
   return JSON.parse(localStorage.getItem('profab_users') || '[]');
 }
-function saveUsers(u) { localStorage.setItem('profab_users', JSON.stringify(u)); }
+function saveUsers(u) {
+  localStorage.setItem('profab_users', JSON.stringify(u));
+  cloudPush();
+}
 function getUserSession() {
   return JSON.parse(localStorage.getItem('profab_user_session') || 'null');
 }
@@ -33,7 +36,8 @@ function registerUser(e) {
   const user = {
     id: 'usr-' + Date.now().toString(36),
     name: `${firstName} ${lastName}`,
-    email, pwHash: hashPwd(pwd), profile
+    email, pwHash: hashPwd(pwd), profile,
+    registeredAt: new Date().toISOString()
   };
   users.push(user);
   saveUsers(users);
@@ -73,7 +77,12 @@ function logoutUser() {
 }
 
 function updateUserNav() {
-  const session = getUserSession();
+  let session = getUserSession();
+  // If account was deleted by admin, clear the stale session
+  if (session && !getUsers().find(u => u.id === session.id)) {
+    clearUserSession();
+    session = null;
+  }
   const loginBtn = document.getElementById('navLoginBtn');
   const userBtn = document.getElementById('navUserBtn');
   const userNameEl = document.getElementById('navUserName');
@@ -192,7 +201,7 @@ function cloudPush() {
       await fetch(`https://api.jsonbin.io/v3/b/${bin}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
-        body: JSON.stringify({ orders: getOrders(), products: getProducts() })
+        body: JSON.stringify({ orders: getOrders(), products: getProducts(), users: getUsers() })
       });
       setSyncStatus('Synced ✓', 'ok');
     } catch {
@@ -212,6 +221,7 @@ async function cloudPull() {
     const { record } = await res.json();
     if (record.orders)   localStorage.setItem('profab_orders',   JSON.stringify(record.orders));
     if (record.products) localStorage.setItem('profab_products', JSON.stringify(record.products));
+    if (record.users)    localStorage.setItem('profab_users',    JSON.stringify(record.users));
     setSyncStatus('Synced ✓', 'ok');
     return true;
   } catch {
@@ -388,7 +398,7 @@ function cartTotal() {
   const products = getProducts();
   return cart.reduce((sum, item) => {
     const p = products.find(p => p.id === item.productId);
-    return sum + (p ? p.price * item.qty : 0);
+    return sum + (p ? effectivePrice(p) * item.qty : 0);
   }, 0);
 }
 
@@ -419,12 +429,16 @@ function renderCartDrawer() {
     const imgHtml = p.image
       ? `<img src="${p.image}" class="cart-item-img" alt="${p.name}" />`
       : `<div class="cart-item-img">${p.emoji || '📦'}</div>`;
+    const ep = effectivePrice(p);
+    const priceHtml = isOnSale(p)
+      ? `<span class="price-was">$${(p.price * item.qty).toFixed(2)}</span><span class="price-sale">$${(ep * item.qty).toFixed(2)}</span>`
+      : `$${(ep * item.qty).toFixed(2)}`;
     return `
       <div class="cart-item">
         ${imgHtml}
         <div class="cart-item-info">
           <div class="cart-item-name">${p.name}</div>
-          <div class="cart-item-price">$${(p.price * item.qty).toFixed(2)}</div>
+          <div class="cart-item-price">${priceHtml}</div>
         </div>
         <div class="cart-item-controls">
           <button class="qty-btn" onclick="setCartQty('${p.id}', ${item.qty - 1})">−</button>
@@ -443,6 +457,14 @@ function toggleCart() {
   document.getElementById('cartDrawer').classList.toggle('open');
   document.getElementById('cartOverlay').classList.toggle('open');
   renderCartDrawer();
+}
+
+// ===== SALE HELPERS =====
+function effectivePrice(p) {
+  return (p.salePrice != null && p.salePrice < p.price) ? p.salePrice : p.price;
+}
+function isOnSale(p) {
+  return p.salePrice != null && p.salePrice < p.price;
 }
 
 // ===== PRODUCT GRID =====
@@ -464,19 +486,30 @@ function renderProducts() {
     const imgHtml = p.image
       ? `<img src="${p.image}" class="product-img" alt="${p.name}" />`
       : `<div class="product-img-placeholder">${p.emoji || '📦'}</div>`;
-    const merits = Math.round(p.price * 100).toLocaleString();
+    const sale    = isOnSale(p);
+    const effPrice = effectivePrice(p);
+    const merits  = Math.round(effPrice * 100).toLocaleString();
+    const pctOff  = sale ? Math.round((1 - effPrice / p.price) * 100) : 0;
+    const priceHtml = sale
+      ? `<div class="product-price">
+           <span class="price-was">$${Number(p.price).toFixed(2)}</span>
+           <span class="price-sale">$${Number(effPrice).toFixed(2)}</span>
+           <span class="price-merits">${merits} merits</span>
+         </div>`
+      : `<div class="product-price">
+           $${Number(p.price).toFixed(2)}
+           <span class="price-merits">${merits} merits</span>
+         </div>`;
     return `
-      <div class="product-card" onclick="openModal('${p.id}')">
+      <div class="product-card${sale ? ' product-card--sale' : ''}" onclick="openModal('${p.id}')">
+        ${sale ? `<div class="sale-badge">${pctOff}% OFF</div>` : ''}
         ${imgHtml}
         <div class="product-body">
           <div class="product-category">${p.category}</div>
           <div class="product-name">${p.name}</div>
           <div class="product-desc">${p.description}</div>
           <div class="product-footer">
-            <div class="product-price">
-              $${Number(p.price).toFixed(2)}
-              <span class="price-merits">${merits} merits</span>
-            </div>
+            ${priceHtml}
             <button class="add-btn" onclick="event.stopPropagation(); addToCart('${p.id}')">+ Add</button>
           </div>
         </div>
@@ -499,8 +532,12 @@ function openModal(productId) {
     <div class="modal-name">${p.name}</div>
     <div class="modal-desc">${p.description}</div>
     <div class="modal-price">
-      $${Number(p.price).toFixed(2)}
-      <span class="modal-price-merits">${Math.round(p.price * 100).toLocaleString()} merits</span>
+      ${isOnSale(p)
+        ? `<span class="price-was">$${Number(p.price).toFixed(2)}</span>
+           <span class="price-sale">$${Number(effectivePrice(p)).toFixed(2)}</span>
+           <span class="sale-badge sale-badge--inline">${Math.round((1-effectivePrice(p)/p.price)*100)}% OFF</span>`
+        : `$${Number(p.price).toFixed(2)}`}
+      <span class="modal-price-merits">${Math.round(effectivePrice(p) * 100).toLocaleString()} merits</span>
     </div>
     <div class="modal-meta">
       ${p.material ? `<span class="meta-tag">🧱 ${p.material}</span>` : ''}
@@ -616,7 +653,7 @@ function submitOrder(e) {
     meritsTotal: Math.round(cartTotal() * 100),
     items: cart.map(item => {
       const p = products.find(p => p.id === item.productId);
-      return { name: p ? p.name : item.productId, qty: item.qty, price: p ? p.price : 0 };
+      return { name: p ? p.name : item.productId, qty: item.qty, price: p ? effectivePrice(p) : 0, origPrice: p ? p.price : 0 };
     }),
     total: cartTotal()
   };
