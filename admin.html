@@ -326,37 +326,46 @@
 
     <!-- CLOCK-IN TAB -->
     <div class="tab-panel" id="tab-clockin">
-      <div class="clockin-top">
-        <div class="clockin-status-card" id="clockinStatusCard">
-          <div class="clockin-clock-icon">⏱️</div>
-          <div class="clockin-status-label" id="clockinStatusLabel">Clocked Out</div>
-          <div class="clockin-elapsed" id="clockinElapsed" style="display:none;"></div>
-          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-            <button class="btn-primary" id="clockinBtn" onclick="clockIn()">Clock In</button>
-            <button class="btn-secondary" id="clockoutBtn" onclick="clockOut()" style="display:none;">Clock Out</button>
+      <!-- View switcher (owner sees both tabs) -->
+      <div id="ciViewSwitcher" style="display:none;margin-bottom:20px;display:flex;gap:8px;">
+        <button class="tab-btn active" id="ciViewMine" onclick="switchCIView('mine')">My Hours</button>
+        <button class="tab-btn" id="ciViewAll" onclick="switchCIView('all')">All Staff</button>
+      </div>
+
+      <!-- MY HOURS -->
+      <div id="ciSectionMine">
+        <div class="clockin-top">
+          <div class="clockin-status-card" id="clockinStatusCard">
+            <div class="clockin-clock-icon">⏱️</div>
+            <div class="clockin-status-label" id="clockinStatusLabel">Clocked Out</div>
+            <div class="clockin-elapsed" id="clockinElapsed" style="display:none;"></div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+              <button class="btn-primary" id="clockinBtn" onclick="clockIn()">Clock In</button>
+              <button class="btn-secondary" id="clockoutBtn" onclick="clockOut()" style="display:none;">Clock Out</button>
+            </div>
+          </div>
+          <div class="clockin-summary-card">
+            <div class="clockin-summary-title">My Summary</div>
+            <div class="clockin-summary-row"><span>Today</span><span id="ciSummaryToday">0h 0m</span></div>
+            <div class="clockin-summary-row"><span>This Week</span><span id="ciSummaryWeek">0h 0m</span></div>
+            <div class="clockin-summary-row"><span>This Month</span><span id="ciSummaryMonth">0h 0m</span></div>
+            <div class="clockin-summary-row clockin-summary-total"><span>All Time</span><span id="ciSummaryAll">0h 0m</span></div>
           </div>
         </div>
-        <div class="clockin-summary-card">
-          <div class="clockin-summary-title">Summary</div>
-          <div class="clockin-summary-row">
-            <span>Today</span><span id="ciSummaryToday">0h 0m</span>
-          </div>
-          <div class="clockin-summary-row">
-            <span>This Week</span><span id="ciSummaryWeek">0h 0m</span>
-          </div>
-          <div class="clockin-summary-row">
-            <span>This Month</span><span id="ciSummaryMonth">0h 0m</span>
-          </div>
-          <div class="clockin-summary-row clockin-summary-total">
-            <span>All Time</span><span id="ciSummaryAll">0h 0m</span>
-          </div>
+        <h3 style="margin:24px 0 12px;">My Time Log</h3>
+        <div class="clockin-log" id="clockinLog"></div>
+        <div id="clockinLogEmpty" style="display:none;color:var(--text3);font-size:14px;text-align:center;padding:30px 0;">No sessions recorded yet.</div>
+        <div style="margin-top:18px;">
+          <button class="delete-btn" onclick="clearAllSessions()" style="font-size:13px;">🗑️ Clear My Log</button>
         </div>
       </div>
-      <h3 style="margin:24px 0 12px;">Time Log</h3>
-      <div class="clockin-log" id="clockinLog"></div>
-      <div id="clockinLogEmpty" style="display:none;color:var(--text3);font-size:14px;text-align:center;padding:30px 0;">No sessions recorded yet.</div>
-      <div style="margin-top:18px;">
-        <button class="delete-btn" onclick="clearAllSessions()" style="font-size:13px;">🗑️ Clear All Log</button>
+
+      <!-- ALL STAFF (owner only) -->
+      <div id="ciSectionAll" style="display:none;">
+        <h3 style="margin-bottom:6px;">All Staff Hours</h3>
+        <p style="color:var(--text2);font-size:14px;margin-bottom:20px;">Total hours logged by every admin account.</p>
+        <div id="ciAllStaffList"></div>
+        <div id="ciAllStaffEmpty" style="display:none;color:var(--text3);font-size:14px;text-align:center;padding:30px 0;">No sessions recorded yet.</div>
       </div>
     </div>
 
@@ -810,7 +819,7 @@
       if (tab === 'users')    renderUsers();
       if (tab === 'sales')    renderSales();
       if (tab === 'revenue')  renderRevenue();
-      if (tab === 'clockin')  renderClockIn();
+      if (tab === 'clockin')  { renderClockIn(); if (getAdminSession()?.role === 'owner') renderAllStaffHours(); }
       if (tab === 'settings') { initColorPickers(); renderAdminAccounts(); }
     }
 
@@ -1211,7 +1220,8 @@
 
     function clockIn() {
       if (getCIActive()) return;
-      saveCIActive({ start: new Date().toISOString() });
+      const session = getAdminSession();
+      saveCIActive({ start: new Date().toISOString(), accountId: session?.id || 'unknown', username: session?.username || '?' });
       renderClockIn();
       cloudPush();
       showToast('Clocked in ✓');
@@ -1224,7 +1234,7 @@
       const ms = new Date(end) - new Date(active.start);
       if (ms < 1000) { showToast('Clock-in too short.'); return; }
       const sessions = getCISessions();
-      sessions.unshift({ start: active.start, end, ms });
+      sessions.unshift({ start: active.start, end, ms, accountId: active.accountId || 'unknown', username: active.username || '?' });
       saveCISessions(sessions);
       saveCIActive(null);
       clearInterval(ciTimer);
@@ -1235,35 +1245,54 @@
     }
 
     function clearAllSessions() {
-      if (!confirm('Clear entire time log? This cannot be undone.')) return;
-      saveCISessions([]);
+      const session = getAdminSession();
+      if (!confirm('Clear your entire time log? This cannot be undone.')) return;
+      // Only remove sessions belonging to current account
+      const remaining = getCISessions().filter(s => s.accountId !== (session?.id || 'unknown'));
+      saveCISessions(remaining);
       renderClockIn();
       cloudPush();
-      showToast('Time log cleared.');
+      showToast('Your time log cleared.');
+    }
+
+    function switchCIView(view) {
+      document.getElementById('ciSectionMine').style.display = view === 'mine' ? '' : 'none';
+      document.getElementById('ciSectionAll').style.display  = view === 'all'  ? '' : 'none';
+      document.getElementById('ciViewMine').classList.toggle('active', view === 'mine');
+      document.getElementById('ciViewAll').classList.toggle('active', view === 'all');
+      if (view === 'all') renderAllStaffHours();
     }
 
     function renderClockIn() {
-      const active = getCIActive();
-      const sessions = getCISessions();
+      const adminSess = getAdminSession();
+      const active    = getCIActive();
+      // Only treat as active if this account clocked in
+      const myActive  = active && active.accountId === adminSess?.id ? active : null;
+      // Sessions for this account only
+      const allSessions = getCISessions();
+      const sessions    = allSessions.filter(s => s.accountId === adminSess?.id);
+
+      // Show/hide view switcher for owners
+      const switcher = document.getElementById('ciViewSwitcher');
+      if (switcher) switcher.style.display = adminSess?.role === 'owner' ? 'flex' : 'none';
 
       // Buttons
-      document.getElementById('clockinBtn').style.display   = active ? 'none' : 'inline-flex';
-      document.getElementById('clockoutBtn').style.display  = active ? 'inline-flex' : 'none';
+      document.getElementById('clockinBtn').style.display   = myActive ? 'none' : 'inline-flex';
+      document.getElementById('clockoutBtn').style.display  = myActive ? 'inline-flex' : 'none';
 
       // Status label
       const label   = document.getElementById('clockinStatusLabel');
       const elapsed = document.getElementById('clockinElapsed');
       const card    = document.getElementById('clockinStatusCard');
-      if (active) {
+      if (myActive) {
         label.textContent = 'Clocked In';
         card.classList.add('clockin-active');
         elapsed.style.display = 'block';
         clearInterval(ciTimer);
         ciTimer = setInterval(() => {
-          const ms = Date.now() - new Date(active.start);
-          elapsed.textContent = fmtDuration(ms);
+          elapsed.textContent = fmtDuration(Date.now() - new Date(myActive.start));
         }, 1000);
-        elapsed.textContent = fmtDuration(Date.now() - new Date(active.start));
+        elapsed.textContent = fmtDuration(Date.now() - new Date(myActive.start));
       } else {
         label.textContent = 'Clocked Out';
         card.classList.remove('clockin-active');
@@ -1272,12 +1301,11 @@
         ciTimer = null;
       }
 
-      // Summary
+      // Summary (my sessions only)
       const now = new Date();
-      const todayStr  = now.toDateString();
-      const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+      const todayStr   = now.toDateString();
+      const weekStart  = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
       let msToday = 0, msWeek = 0, msMonth = 0, msAll = 0;
       sessions.forEach(s => {
         const d = new Date(s.start);
@@ -1291,41 +1319,119 @@
       document.getElementById('ciSummaryMonth').textContent = fmtDurationHM(msMonth);
       document.getElementById('ciSummaryAll').textContent   = fmtDurationHM(msAll);
 
-      // Log
+      // Log (my sessions only)
       const log   = document.getElementById('clockinLog');
       const empty = document.getElementById('clockinLogEmpty');
-      if (sessions.length === 0) {
-        log.innerHTML = '';
-        empty.style.display = 'block';
-        return;
-      }
+      if (sessions.length === 0) { log.innerHTML = ''; empty.style.display = 'block'; return; }
       empty.style.display = 'none';
-
-      // Group by date
       const groups = {};
       sessions.forEach(s => {
         const key = new Date(s.start).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
         if (!groups[key]) groups[key] = [];
         groups[key].push(s);
       });
-
       log.innerHTML = Object.entries(groups).map(([date, rows]) => {
         const dayTotal = rows.reduce((a, r) => a + r.ms, 0);
-        return `
-          <div class="ci-day-group">
-            <div class="ci-day-header">
-              <span>${date}</span>
-              <span class="ci-day-total">${fmtDurationHM(dayTotal)}</span>
+        return `<div class="ci-day-group">
+          <div class="ci-day-header"><span>${date}</span><span class="ci-day-total">${fmtDurationHM(dayTotal)}</span></div>
+          ${rows.map(r => {
+            const inT  = new Date(r.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const outT = new Date(r.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            return `<div class="ci-row"><span class="ci-row-time">${inT} → ${outT}</span><span class="ci-row-dur">${fmtDuration(r.ms)}</span></div>`;
+          }).join('')}
+        </div>`;
+      }).join('');
+    }
+
+    function renderAllStaffHours() {
+      const listEl = document.getElementById('ciAllStaffList');
+      const emptyEl = document.getElementById('ciAllStaffEmpty');
+      const allSessions = getCISessions();
+      const accounts = getAdminAccounts();
+
+      if (allSessions.length === 0) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      // Group sessions by accountId
+      const byAccount = {};
+      allSessions.forEach(s => {
+        const key = s.accountId || 'unknown';
+        if (!byAccount[key]) byAccount[key] = { username: s.username || key, sessions: [] };
+        byAccount[key].sessions.push(s);
+      });
+
+      // Also include accounts with zero sessions so they show up
+      accounts.forEach(a => {
+        if (!byAccount[a.id]) byAccount[a.id] = { username: a.username, sessions: [] };
+        else byAccount[a.id].username = a.username; // keep name fresh
+      });
+
+      const now = new Date();
+      const todayStr   = now.toDateString();
+      const weekStart  = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      // Check active clock-in per account
+      const active = getCIActive();
+
+      listEl.innerHTML = Object.entries(byAccount).map(([accountId, data]) => {
+        const { username, sessions } = data;
+        let msToday = 0, msWeek = 0, msMonth = 0, msAll = 0;
+        sessions.forEach(s => {
+          const d = new Date(s.start);
+          msAll += s.ms;
+          if (d.toDateString() === todayStr) msToday += s.ms;
+          if (d >= weekStart) msWeek += s.ms;
+          if (d >= monthStart) msMonth += s.ms;
+        });
+        const isClockedIn = active && active.accountId === accountId;
+        const liveMs = isClockedIn ? Date.now() - new Date(active.start) : 0;
+
+        // Group sessions by date for log
+        const groups = {};
+        sessions.forEach(s => {
+          const key = new Date(s.start).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(s);
+        });
+
+        return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;margin-bottom:18px;overflow:hidden;">
+          <div style="padding:16px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:16px;font-weight:800;color:var(--text);">${username}</span>
+              ${isClockedIn ? `<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(76,175,80,0.15);color:#66bb6a;">● Live — ${fmtDuration(liveMs)}</span>` : ''}
             </div>
-            ${rows.map(r => {
-              const inT  = new Date(r.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-              const outT = new Date(r.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-              return `<div class="ci-row">
-                <span class="ci-row-time">${inT} → ${outT}</span>
-                <span class="ci-row-dur">${fmtDuration(r.ms)}</span>
-              </div>`;
-            }).join('')}
-          </div>`;
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">
+              <div style="text-align:center;"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Today</div><div style="font-size:15px;font-weight:700;color:var(--text);">${fmtDurationHM(msToday)}</div></div>
+              <div style="text-align:center;"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Week</div><div style="font-size:15px;font-weight:700;color:var(--text);">${fmtDurationHM(msWeek)}</div></div>
+              <div style="text-align:center;"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Month</div><div style="font-size:15px;font-weight:700;color:var(--text);">${fmtDurationHM(msMonth)}</div></div>
+              <div style="text-align:center;"><div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">All Time</div><div style="font-size:18px;font-weight:800;color:var(--accent);">${fmtDurationHM(msAll)}</div></div>
+            </div>
+          </div>
+          ${sessions.length > 0 ? `
+          <details style="padding:0;">
+            <summary style="padding:10px 18px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;">
+              ▸ View time log (${sessions.length} session${sessions.length===1?'':'s'})
+            </summary>
+            <div style="padding:0 18px 14px;">
+              ${Object.entries(groups).map(([date, rows]) => {
+                const dayTotal = rows.reduce((a, r) => a + r.ms, 0);
+                return `<div class="ci-day-group" style="margin-bottom:8px;">
+                  <div class="ci-day-header"><span>${date}</span><span class="ci-day-total">${fmtDurationHM(dayTotal)}</span></div>
+                  ${rows.map(r => {
+                    const inT  = new Date(r.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const outT = new Date(r.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    return `<div class="ci-row"><span class="ci-row-time">${inT} → ${outT}</span><span class="ci-row-dur">${fmtDuration(r.ms)}</span></div>`;
+                  }).join('')}
+                </div>`;
+              }).join('')}
+            </div>
+          </details>` : '<div style="padding:12px 18px;font-size:13px;color:var(--text3);">No sessions recorded.</div>'}
+        </div>`;
       }).join('');
     }
 
