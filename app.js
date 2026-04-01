@@ -277,7 +277,7 @@ let _pushTimer = null;
 function cloudPush() {
   // Debounce — wait 800ms after last save before pushing
   clearTimeout(_pushTimer);
-  _pushTimer = setTimeout(async () => {
+  _pushTimer = setTimeout(async () => { // 200ms debounce keeps cloud fresh
     const { key, bin } = getCloudConfig();
     if (!key || !bin) return;
     try {
@@ -298,7 +298,7 @@ function cloudPush() {
     } catch {
       setSyncStatus('Sync failed', 'err');
     }
-  }, 800);
+  }, 200);
 }
 
 async function cloudPull() {
@@ -310,9 +310,12 @@ async function cloudPull() {
     });
     if (!res.ok) return false;
     const { record } = await res.json();
-    if (record.orders)      localStorage.setItem('profab_orders',      JSON.stringify(record.orders));
-    if (record.products)    localStorage.setItem('profab_products',    JSON.stringify(record.products));
-    if (record.users)       localStorage.setItem('profab_users',       JSON.stringify(record.users));
+    if (record.orders)   localStorage.setItem('profab_orders', JSON.stringify(record.orders));
+    // Only overwrite local products if the cloud has at least as many as we do locally,
+    // preventing a stale cloud snapshot from wiping products added since the last push.
+    if (record.products && record.products.length >= getProducts().length)
+      localStorage.setItem('profab_products', JSON.stringify(record.products));
+    if (record.users)    localStorage.setItem('profab_users',   JSON.stringify(record.users));
     if (record.ci_sessions) localStorage.setItem('profab_ci_sessions', JSON.stringify(record.ci_sessions));
     if (record.ci_active !== undefined) {
       if (record.ci_active) localStorage.setItem('profab_ci_active', JSON.stringify(record.ci_active));
