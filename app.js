@@ -1391,9 +1391,11 @@ async function processCardPayment(order) {
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme(); // re-apply after DOM ready so UI buttons sync
-  await cloudPull(true); // syncProducts=true on initial load only
-  renderProducts();
+  renderProducts(); // render immediately from localStorage — no wait
   updateCartUI();
   updateUserNav();
   initStripe();
+  await cloudPull(true); // fetch latest from cloud, then refresh
+  renderProducts();
+  updateCartUI();
 });

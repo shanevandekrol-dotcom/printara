@@ -1214,12 +1214,31 @@
     function saveCISessions(s) {
       localStorage.setItem('profab_ci_sessions', JSON.stringify(s));
     }
-    function getCIActive() {
-      return JSON.parse(localStorage.getItem('profab_ci_active') || 'null');
+    function getCIActiveMap() {
+      const raw = localStorage.getItem('profab_ci_active');
+      if (!raw) return {};
+      const val = JSON.parse(raw);
+      // Migrate old single-session format { start, accountId, ... } to map format
+      if (val && typeof val === 'object' && val.start && val.accountId) {
+        return { [val.accountId]: val };
+      }
+      return (val && typeof val === 'object') ? val : {};
     }
-    function saveCIActive(a) {
-      if (a) localStorage.setItem('profab_ci_active', JSON.stringify(a));
-      else localStorage.removeItem('profab_ci_active');
+    function getMyActive() {
+      const session = getAdminSession();
+      if (!session) return null;
+      return getCIActiveMap()[session.id] || null;
+    }
+    function saveMyActive(a) {
+      const session = getAdminSession();
+      if (!session) return;
+      const map = getCIActiveMap();
+      if (a) map[session.id] = a;
+      else delete map[session.id];
+      if (Object.keys(map).length > 0)
+        localStorage.setItem('profab_ci_active', JSON.stringify(map));
+      else
+        localStorage.removeItem('profab_ci_active');
     }
 
     function fmtDuration(ms) {
@@ -1239,16 +1258,16 @@
     }
 
     function clockIn() {
-      if (getCIActive()) return;
+      if (getMyActive()) return;
       const session = getAdminSession();
-      saveCIActive({ start: new Date().toISOString(), accountId: session?.id || 'unknown', username: session?.username || '?' });
+      saveMyActive({ start: new Date().toISOString(), accountId: session?.id || 'unknown', username: session?.username || '?' });
       renderClockIn();
       cloudPush();
       showToast('Clocked in ✓');
     }
 
     function clockOut() {
-      const active = getCIActive();
+      const active = getMyActive();
       if (!active) return;
       const end = new Date().toISOString();
       const ms = new Date(end) - new Date(active.start);
@@ -1256,7 +1275,7 @@
       const sessions = getCISessions();
       sessions.unshift({ start: active.start, end, ms, accountId: active.accountId || 'unknown', username: active.username || '?' });
       saveCISessions(sessions);
-      saveCIActive(null);
+      saveMyActive(null);
       clearInterval(ciTimer);
       ciTimer = null;
       renderClockIn();
@@ -1285,9 +1304,7 @@
 
     function renderClockIn() {
       const adminSess = getAdminSession();
-      const active    = getCIActive();
-      // Only treat as active if this account clocked in
-      const myActive  = active && active.accountId === adminSess?.id ? active : null;
+      const myActive  = getMyActive();
       // Sessions for this account only
       const allSessions = getCISessions();
       const sessions    = allSessions.filter(s => s.accountId === adminSess?.id);
@@ -1396,7 +1413,7 @@
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // Check active clock-in per account
-      const active = getCIActive();
+      const activeMap = getCIActiveMap();
 
       listEl.innerHTML = Object.entries(byAccount).map(([accountId, data]) => {
         const { username, sessions } = data;
@@ -1408,8 +1425,8 @@
           if (d >= weekStart) msWeek += s.ms;
           if (d >= monthStart) msMonth += s.ms;
         });
-        const isClockedIn = active && active.accountId === accountId;
-        const liveMs = isClockedIn ? Date.now() - new Date(active.start) : 0;
+        const isClockedIn = !!activeMap[accountId];
+        const liveMs = isClockedIn ? Date.now() - new Date(activeMap[accountId].start) : 0;
 
         // Group sessions by date for log
         const groups = {};
