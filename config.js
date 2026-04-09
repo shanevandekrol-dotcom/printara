@@ -10,4 +10,8 @@ window.PROFAB_CONFIG = {
 
   // Stripe publishable key (safe for browser)
   stripeKey: '',
+
+  // JSONBin cloud storage
+  cloudKey: '$2a$10$JDUtUr0CN1vkr0NbpD6GF.6K3U/YdqiJ/i4e8HGkDRz4JbFgMlBtK',
+  cloudBin: '69c48961aa77b81da91d825d',
 };

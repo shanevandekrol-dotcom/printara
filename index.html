@@ -79,66 +79,28 @@
 
   <main class="page-content">
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="hero-bg">
-      <div class="grid-lines"></div>
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-    </div>
-    <div class="hero-inner">
-    <div class="hero-content">
-      <div class="hero-badge">✦ Custom 3D Printing</div>
-      <h1 class="hero-title">
-        Precision Parts,<br/>
-        <span class="gradient-text">Printed to Order</span>
-      </h1>
-      <p class="hero-sub">Browse our catalog of custom 3D printed products. Every item is printed fresh when you order.</p>
-      <a href="#products" class="btn-primary">Browse Products ↓</a>
-    </div>
-    <div class="hero-visual">
-      <div class="cube-wrap">
-        <div class="cube">
-          <div class="face front"></div>
-          <div class="face back"></div>
-          <div class="face left"></div>
-          <div class="face right"></div>
-          <div class="face top"></div>
-          <div class="face bottom"></div>
-        </div>
+  <!-- SHOP BANNER -->
+  <section class="shop-banner">
+    <div class="shop-banner-inner">
+      <div class="shop-banner-text">
+        <h1>Pro-Fab 3D Store</h1>
+        <p>Custom 3D printed parts — printed fresh when you order</p>
       </div>
+      <button class="custom-order-pill" onclick="openCustomOrder()">
+        <span class="custom-order-pill-icon">✏️</span>
+        Need something custom? Request it →
+      </button>
     </div>
-    </div><!-- /hero-inner -->
   </section>
 
   <!-- PRODUCTS -->
-  <section class="section" id="products">
+  <section class="shop-section" id="products">
     <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Available Products</h2>
-        <p class="section-sub">Click any product to view details and add to cart</p>
-      </div>
-      <div class="product-grid" id="productGrid">
-        <!-- Products injected by JS -->
-      </div>
+      <div class="product-grid" id="productGrid"></div>
       <div class="empty-state" id="emptyState" style="display:none;">
         <div class="empty-icon">📦</div>
         <h3>No products yet</h3>
         <p>Head to the <a href="admin.html">Admin panel</a> to add your first product.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- CUSTOM ORDER CTA -->
-  <section class="section section--custom-cta">
-    <div class="container">
-      <div class="custom-cta-card">
-        <div class="custom-cta-icon">🖨️</div>
-        <div class="custom-cta-text">
-          <h2>Need Something Custom?</h2>
-          <p>Don't see what you're looking for? Describe your part and we'll print it for you.</p>
-        </div>
-        <button class="btn-primary" onclick="openCustomOrder()">Request Custom Part →</button>
       </div>
     </div>
   </section>

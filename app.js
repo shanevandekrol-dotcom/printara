@@ -1,33 +1,55 @@
-// ===== DB HELPERS (browser → Netlify Functions → MySQL) ======================
-// All writes are fire-and-forget; localStorage stays the synchronous source of truth.
+// ===== CLOUD SYNC (JSONBin) ===================================================
+const CLOUD_URL = 'https://api.jsonbin.io/v3/b/';
 
-async function _dbGet(path) {
-  try { const r = await fetch(path); return r.ok ? r.json() : null; } catch { return null; }
-}
-async function _dbPost(path, body) {
-  try { await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch {}
-}
-async function _dbPut(path, body) {
-  try { await fetch(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch {}
-}
-async function _dbDelete(path) {
-  try { await fetch(path, { method: 'DELETE' }); } catch {}
+function getCloudConfig() {
+  const cfg = window.PROFAB_CONFIG || {};
+  return { key: cfg.cloudKey || '', bin: cfg.cloudBin || '' };
 }
 
-// Pull all entities from MySQL in parallel and refresh localStorage caches.
-async function syncAllFromDB() {
+async function cloudPull() {
+  const { key, bin } = getCloudConfig();
+  if (!key || !bin) return null;
   try {
-    const [users, orders, notifications, products] = await Promise.all([
-      _dbGet('/.netlify/functions/accounts'),
-      _dbGet('/.netlify/functions/orders'),
-      _dbGet('/.netlify/functions/notifications'),
-      _dbGet('/.netlify/functions/listings'),
-    ]);
-    if (Array.isArray(users)         && users.length)         localStorage.setItem('profab_users',         JSON.stringify(users));
-    if (Array.isArray(orders)        && orders.length)        localStorage.setItem('profab_orders',        JSON.stringify(orders));
-    if (Array.isArray(notifications) && notifications.length) localStorage.setItem('profab_notifications', JSON.stringify(notifications));
-    if (Array.isArray(products)      && products.length)      localStorage.setItem('profab_products',      JSON.stringify(products));
-  } catch { /* DB unavailable — continue with cached data */ }
+    const r = await fetch(CLOUD_URL + bin + '/latest', {
+      headers: { 'X-Master-Key': key }
+    });
+    if (!r.ok) return null;
+    const json = await r.json();
+    return json.record || null;
+  } catch { return null; }
+}
+
+async function cloudPush() {
+  const { key, bin } = getCloudConfig();
+  if (!key || !bin) return;
+  const data = {
+    users:         JSON.parse(localStorage.getItem('profab_users')         || '[]'),
+    orders:        JSON.parse(localStorage.getItem('profab_orders')        || '[]'),
+    products:      JSON.parse(localStorage.getItem('profab_products')      || '[]'),
+    notifications: JSON.parse(localStorage.getItem('profab_notifications') || '[]'),
+  };
+  try {
+    await fetch(CLOUD_URL + bin, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+      body: JSON.stringify(data),
+    });
+  } catch { /* non-fatal */ }
+}
+
+let _pushTimer = null;
+function schedulePush() {
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(cloudPush, 200);
+}
+
+async function syncAllFromDB() {
+  const data = await cloudPull();
+  if (!data) return;
+  if (Array.isArray(data.users)         && data.users.length)         localStorage.setItem('profab_users',         JSON.stringify(data.users));
+  if (Array.isArray(data.orders)        && data.orders.length)        localStorage.setItem('profab_orders',        JSON.stringify(data.orders));
+  if (Array.isArray(data.notifications) && data.notifications.length) localStorage.setItem('profab_notifications', JSON.stringify(data.notifications));
+  if (Array.isArray(data.products)      && data.products.length)      localStorage.setItem('profab_products',      JSON.stringify(data.products));
 }
 
 // ===== USER AUTH =====
@@ -36,6 +58,7 @@ function getUsers() {
 }
 function saveUsers(u) {
   localStorage.setItem('profab_users', JSON.stringify(u));
+  schedulePush();
 }
 function getUserSession() {
   return JSON.parse(localStorage.getItem('profab_user_session') || 'null');
@@ -202,6 +225,7 @@ function getNotifications() {
 }
 function saveNotifications(n) {
   localStorage.setItem('profab_notifications', JSON.stringify(n));
+  schedulePush();
 }
 function addNotification(userId, type, orderId, message) {
   if (!userId) return;
@@ -274,57 +298,18 @@ function getProducts() {
 }
 function saveProducts(products) {
   localStorage.setItem('profab_products', JSON.stringify(products));
+  schedulePush();
 }
 
-// ===== LISTINGS DB SYNC =====
-// Pulls listings from MySQL (via Netlify Function) and refreshes localStorage cache.
-// Called once on page load; all synchronous getProducts() calls still read from cache.
-async function syncListingsFromDB() {
-  try {
-    const res = await fetch('/.netlify/functions/listings');
-    if (!res.ok) return;
-    const products = await res.json();
-    if (Array.isArray(products) && products.length > 0) {
-      localStorage.setItem('profab_products', JSON.stringify(products));
-    }
-  } catch {
-    // DB unavailable — continue with cached/localStorage data
-  }
-}
-
-// Write a single product to MySQL.
-async function dbUpsertProduct(product) {
-  try {
-    await fetch('/.netlify/functions/listings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(product),
-    });
-  } catch { /* non-fatal */ }
-}
-
-// Delete a single product from MySQL.
-async function dbDeleteProduct(id) {
-  try {
-    await fetch(`/.netlify/functions/listings?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-  } catch { /* non-fatal */ }
-}
-
-// Update a field on a product in MySQL.
-async function dbUpdateProduct(patch) {
-  try {
-    await fetch('/.netlify/functions/listings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-  } catch { /* non-fatal */ }
-}
+function dbUpsertProduct() { /* no-op: cloud push handles sync */ }
+function dbDeleteProduct()  { /* no-op: cloud push handles sync */ }
+function dbUpdateProduct()  { /* no-op: cloud push handles sync */ }
 function getOrders() {
   return JSON.parse(localStorage.getItem('profab_orders') || '[]');
 }
 function saveOrders(orders) {
   localStorage.setItem('profab_orders', JSON.stringify(orders));
+  schedulePush();
 }
 
 function saveStripeKey() {
@@ -344,7 +329,7 @@ async function manualSync() {
   if (typeof window['renderOrders'] === 'function') window['renderOrders']();
   if (typeof window['renderManage'] === 'function') window['renderManage']();
   renderProducts();
-  showToast('Synced from database ✓');
+  showToast('Synced from cloud ✓');
 }
 function getCart() {
   return JSON.parse(localStorage.getItem('profab_cart') || '[]');
@@ -527,33 +512,29 @@ function renderProducts() {
 
   grid.innerHTML = products.map(p => {
     const imgHtml = p.image
-      ? `<img src="${p.image}" class="product-img" alt="${p.name}" />`
+      ? `<img src="${p.image}" class="product-img" alt="${p.name}" loading="lazy" />`
       : `<div class="product-img-placeholder">${p.emoji || '📦'}</div>`;
-    const sale    = isOnSale(p);
+    const sale     = isOnSale(p);
     const effPrice = effectivePrice(p);
-    const merits  = Math.round(effPrice * 100).toLocaleString();
-    const pctOff  = sale ? Math.round((1 - effPrice / p.price) * 100) : 0;
-    const priceHtml = sale
-      ? `<div class="product-price">
-           <span class="price-was">$${Number(p.price).toFixed(2)}</span>
-           <span class="price-sale">$${Number(effPrice).toFixed(2)}</span>
-           <span class="price-merits">${merits} merits</span>
-         </div>`
-      : `<div class="product-price">
-           $${Number(p.price).toFixed(2)}
-           <span class="price-merits">${merits} merits</span>
-         </div>`;
+    const pctOff   = sale ? Math.round((1 - effPrice / p.price) * 100) : 0;
     return `
-      <div class="product-card${sale ? ' product-card--sale' : ''}" onclick="openModal('${p.id}')">
-        ${sale ? `<div class="sale-badge">${pctOff}% OFF</div>` : ''}
-        ${imgHtml}
+      <div class="product-card" onclick="openModal('${p.id}')">
+        <div class="product-img-wrap">
+          ${imgHtml}
+          ${sale ? `<span class="sale-badge">${pctOff}% OFF</span>` : ''}
+        </div>
         <div class="product-body">
-          <div class="product-category">${p.category}</div>
+          ${p.category ? `<div class="product-category">${p.category}</div>` : ''}
           <div class="product-name">${p.name}</div>
-          <div class="product-desc">${p.description}</div>
+          ${p.description ? `<div class="product-desc">${p.description}</div>` : ''}
           <div class="product-footer">
-            ${priceHtml}
-            <button class="add-btn" onclick="event.stopPropagation(); addToCart('${p.id}')">+ Add</button>
+            <div class="product-price-block">
+              ${sale
+                ? `<span class="price-was">$${Number(p.price).toFixed(2)}</span>
+                   <span class="price-now">$${Number(effPrice).toFixed(2)}</span>`
+                : `<span class="price-now">$${Number(p.price).toFixed(2)}</span>`}
+            </div>
+            <button class="add-to-cart-btn" onclick="event.stopPropagation(); addToCart('${p.id}'); this.textContent='✓ Added'; setTimeout(()=>this.textContent='Add to Cart',1500)">Add to Cart</button>
           </div>
         </div>
       </div>`;
@@ -565,35 +546,46 @@ function openModal(productId) {
   const p = getProducts().find(p => p.id === productId);
   if (!p) return;
 
+  const sale     = isOnSale(p);
+  const effPrice = effectivePrice(p);
+  const pctOff   = sale ? Math.round((1 - effPrice / p.price) * 100) : 0;
   const imgHtml = p.image
-    ? `<img src="${p.image}" class="modal-product-img" alt="${p.name}" />`
-    : `<div class="modal-product-placeholder">${p.emoji || '📦'}</div>`;
+    ? `<img src="${p.image}" class="pdp-img" alt="${p.name}" />`
+    : `<div class="pdp-img-placeholder">${p.emoji || '📦'}</div>`;
 
   document.getElementById('modalContent').innerHTML = `
-    ${imgHtml}
-    <div class="modal-category">${p.category}</div>
-    <div class="modal-name">${p.name}</div>
-    <div class="modal-desc">${p.description}</div>
-    <div class="modal-price">
-      ${isOnSale(p)
-        ? `<span class="price-was">$${Number(p.price).toFixed(2)}</span>
-           <span class="price-sale">$${Number(effectivePrice(p)).toFixed(2)}</span>
-           <span class="sale-badge sale-badge--inline">${Math.round((1-effectivePrice(p)/p.price)*100)}% OFF</span>`
-        : `$${Number(p.price).toFixed(2)}`}
-      <span class="modal-price-merits">${Math.round(effectivePrice(p) * 100).toLocaleString()} merits</span>
-    </div>
-    <div class="modal-meta">
-      ${p.material ? `<span class="meta-tag">🧱 ${p.material}</span>` : ''}
-      ${p.printTime ? `<span class="meta-tag">⏱️ ${p.printTime}</span>` : ''}
-      ${p.dimensions ? `<span class="meta-tag">📐 ${p.dimensions}</span>` : ''}
-    </div>
-    <div class="modal-qty">
-      <label>Qty:</label>
-      <input type="number" class="modal-qty-input" id="modalQty" value="1" min="1" max="99" />
-    </div>
-    <button class="btn-primary btn-full" onclick="addToCart('${p.id}', parseInt(document.getElementById('modalQty').value) || 1); closeModal();">
-      Add to Cart
-    </button>`;
+    <div class="pdp-layout">
+      <div class="pdp-left">${imgHtml}</div>
+      <div class="pdp-right">
+        ${p.category ? `<div class="pdp-category">${p.category}</div>` : ''}
+        <h2 class="pdp-name">${p.name}</h2>
+        <div class="pdp-price-row">
+          ${sale
+            ? `<span class="pdp-price-now">$${Number(effPrice).toFixed(2)}</span>
+               <span class="pdp-price-was">$${Number(p.price).toFixed(2)}</span>
+               <span class="sale-badge">${pctOff}% OFF</span>`
+            : `<span class="pdp-price-now">$${Number(p.price).toFixed(2)}</span>`}
+        </div>
+        ${p.description ? `<p class="pdp-desc">${p.description}</p>` : ''}
+        ${(p.material || p.printTime || p.dimensions) ? `
+        <div class="pdp-specs">
+          ${p.material   ? `<div class="pdp-spec"><span class="pdp-spec-label">Material</span><span>${p.material}</span></div>` : ''}
+          ${p.printTime  ? `<div class="pdp-spec"><span class="pdp-spec-label">Print time</span><span>${p.printTime}</span></div>` : ''}
+          ${p.dimensions ? `<div class="pdp-spec"><span class="pdp-spec-label">Dimensions</span><span>${p.dimensions}</span></div>` : ''}
+        </div>` : ''}
+        <div class="pdp-qty-row">
+          <label class="pdp-qty-label">Qty</label>
+          <div class="pdp-qty-ctrl">
+            <button type="button" onclick="var i=document.getElementById('modalQty');i.value=Math.max(1,+i.value-1)">−</button>
+            <input type="number" id="modalQty" value="1" min="1" max="99" />
+            <button type="button" onclick="var i=document.getElementById('modalQty');i.value=Math.min(99,+i.value+1)">+</button>
+          </div>
+        </div>
+        <button class="pdp-add-btn" onclick="addToCart('${p.id}', parseInt(document.getElementById('modalQty').value)||1); this.textContent='✓ Added to Cart'; setTimeout(()=>{this.textContent='Add to Cart';closeModal();},900);">
+          Add to Cart
+        </button>
+      </div>
+    </div>`;
 
   document.getElementById('productModal').classList.add('open');
   document.getElementById('modalOverlay').classList.add('open');
