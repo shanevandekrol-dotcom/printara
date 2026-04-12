@@ -55,6 +55,12 @@ async function syncAllFromDB() {
   if (Array.isArray(data.products)      && data.products.length)      localStorage.setItem('profab_products',      JSON.stringify(data.products));
 }
 
+// No-op fallbacks for DB calls — overridden by admin.html stubs when needed;
+// prevents ReferenceErrors on the storefront page.
+if (typeof _dbPost   === 'undefined') window._dbPost   = async () => {};
+if (typeof _dbPut    === 'undefined') window._dbPut    = async () => {};
+if (typeof _dbDelete === 'undefined') window._dbDelete = async () => {};
+
 // ===== USER AUTH =====
 function getUsers() {
   return JSON.parse(localStorage.getItem('profab_users') || '[]');
