@@ -771,7 +771,10 @@
     }
     function hasPermission(tab) {
       const s = getAdminSession();
-      return s && s.permissions.includes(tab);
+      if (!s) return false;
+      // Owners always have every permission, including tabs added after account creation.
+      if (s.role === 'owner') return true;
+      return s.permissions.includes(tab);
     }
 
     // Rate limiting
