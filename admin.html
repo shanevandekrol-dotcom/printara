@@ -3845,13 +3845,21 @@
       });
     }
 
-    // ── Geocoding (Nominatim) ─────────────────────────────────────────────────
-    function _mapSelectResult(lat, lon, displayName) {
-      _mapCenterLat = lat;
-      _mapCenterLon = lon;
-      const name = displayName.split(',').slice(0, 3).join(', ');
+    // ── Geocoding ─────────────────────────────────────────────────────────────
+    let _mapGeoResults = []; // store results by index so onclick never breaks
+
+    function _mapPickResult(i) {
+      const r = _mapGeoResults[i];
+      if (!r) return;
+      _mapCenterLat = parseFloat(r.lat);
+      _mapCenterLon = parseFloat(r.lon);
+      const name = r.display_name.split(',').slice(0, 3).join(', ');
       const res = document.getElementById('mapGeoResult');
-      if (res) res.innerHTML = `📍 <b>${name}</b> &nbsp;<span style="color:var(--text3);font-size:11px;">${lat.toFixed(5)}°, ${lon.toFixed(5)}°</span>`;
+      if (res) res.innerHTML = `<div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;font-size:13px;">
+        📍 <b>${name}</b><br>
+        <span style="color:var(--text3);font-size:11px;">${_mapCenterLat.toFixed(5)}°, ${_mapCenterLon.toFixed(5)}°</span>
+      </div>`;
+      showToast('Location set — click Generate!');
     }
 
     async function mapSearch() {
@@ -3860,38 +3868,54 @@
       if (!q) { showToast('Enter an address or place name.'); return; }
 
       const btn = document.getElementById('mapSearchBtn');
-      if (btn) { btn.textContent = 'Searching…'; btn.disabled = true; }
+      if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
       const res = document.getElementById('mapGeoResult');
-      if (res) res.textContent = 'Searching…';
+      if (res) res.innerHTML = '<span style="color:var(--text3);font-size:12px;">Searching…</span>';
+
+      _mapGeoResults = [];
 
       try {
-        // Fetch up to 6 results for disambiguation
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`;
-        const data = await fetch(url, { headers: { 'Accept-Language': 'en' } }).then(r => r.json());
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&addressdetails=1`;
+        const data = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'ProFab3D/1.0' } }).then(r => r.json());
 
-        if (!data.length) {
-          if (res) res.innerHTML = '<span style="color:var(--accent3);">⚠️ Nothing found — try adding a city, state, or ZIP code.</span>';
+        if (!data || !data.length) {
+          // Fallback: try just the raw query with no structured parsing
+          if (res) res.innerHTML = `<div style="color:var(--accent3);font-size:12px;padding:8px 0;">
+            ⚠️ Address not found.<br>
+            <span style="color:var(--text3);">Try: include city &amp; state, use a ZIP code, or search a nearby landmark.</span>
+          </div>`;
           return;
         }
 
+        _mapGeoResults = data;
+
         if (data.length === 1) {
-          // Single result — auto-select
-          _mapSelectResult(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name);
-          showToast('Location found — click Generate!');
-        } else {
-          // Multiple results — show a pick list
-          const items = data.map((r, i) => {
-            const label = r.display_name.split(',').slice(0, 4).join(', ');
-            const type  = r.type || r.class || '';
-            return `<div onclick="_mapSelectResult(${r.lat},${r.lon},${JSON.stringify(r.display_name)})" style="padding:7px 10px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px;line-height:1.4;" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''">
-              <b>${label}</b>${type ? ` <span style="color:var(--text3);font-size:11px;">(${type})</span>` : ''}
-            </div>`;
-          }).join('');
-          if (res) res.innerHTML = `<div style="margin-top:6px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface2);">
-            <div style="padding:6px 10px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border);">Pick a result:</div>
-            ${items}
-          </div>`;
+          _mapPickResult(0);
+          return;
         }
+
+        // Build clickable result list — no inline JSON, just index
+        let html = `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:4px;background:var(--surface2);">
+          <div style="padding:6px 12px;font-size:11px;color:var(--text3);background:var(--surface3);border-bottom:1px solid var(--border);">
+            ${data.length} results — tap one to select:
+          </div>`;
+        data.forEach((r, i) => {
+          const parts  = r.display_name.split(',');
+          const line1  = parts.slice(0, 2).join(',').trim();
+          const line2  = parts.slice(2, 4).join(',').trim();
+          const badge  = (r.type || r.class || '').replace(/_/g, ' ');
+          html += `<div onclick="_mapPickResult(${i})" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);user-select:none;"
+              onmousedown="this.style.background='var(--accent)';this.style.color='#fff'"
+              onmouseup="this.style.background='';this.style.color='';_mapPickResult(${i})"
+              onmouseover="this.style.background='var(--surface3)'"
+              onmouseout="this.style.background=''">
+            <div style="font-size:13px;font-weight:600;">${line1}</div>
+            ${line2 ? `<div style="font-size:11px;color:var(--text3);">${line2}${badge ? ' · ' + badge : ''}</div>` : ''}
+          </div>`;
+        });
+        html += '</div>';
+        if (res) res.innerHTML = html;
+
       } catch (err) {
         if (res) res.innerHTML = '<span style="color:var(--accent3);">⚠️ Search failed — check your connection.</span>';
         console.error(err);
