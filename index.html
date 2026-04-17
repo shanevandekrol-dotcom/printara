@@ -3,397 +3,241 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pro-Fab 3D — Custom 3D Printed Products</title>
-  <link rel="icon" href="Pro-Fab 3d logo.jpg" />
-  <link rel="apple-touch-icon" href="Pro-Fab 3d logo.jpg" />
-  <meta name="apple-mobile-web-app-title" content="Pro-Fab 3D" />
+  <title>Layer Forge — 3D Design Tools</title>
+  <link rel="icon" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta name="apple-mobile-web-app-title" content="Layer Forge" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#0a0a0a" />
   <link rel="stylesheet" href="style.css" />
-  <script src="https://js.stripe.com/v3/"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .home-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 72px 24px 48px;
+      gap: 16px;
+    }
+    .home-hero-logo {
+      width: 80px;
+      height: 80px;
+      border-radius: 22px;
+      object-fit: cover;
+      box-shadow: 0 8px 32px rgba(224,32,32,0.35);
+      margin-bottom: 8px;
+    }
+    .home-hero h1 {
+      font-size: clamp(28px, 6vw, 52px);
+      font-weight: 800;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #fff 40%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+    }
+    .home-hero p {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text2);
+      max-width: 480px;
+      margin: 0;
+    }
+    .home-cta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .home-cta a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .home-cta a:active { transform: scale(.97); }
+    .home-cta .cta-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(224,32,32,0.4);
+    }
+    .home-cta .cta-primary:hover { box-shadow: 0 8px 32px rgba(224,32,32,0.55); }
+    .home-cta .cta-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px 72px;
+    }
+    .tool-card-home {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color .2s, transform .2s;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .tool-card-home:hover {
+      border-color: rgba(224,32,32,0.5);
+      transform: translateY(-3px);
+    }
+    .tool-card-home-icon {
+      font-size: 36px;
+      line-height: 1;
+    }
+    .tool-card-home h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0;
+    }
+    .tool-card-home p {
+      font-size: 13px;
+      color: var(--text2);
+      margin: 0;
+      line-height: 1.5;
+    }
+    .tool-card-home-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 8px;
+    }
+
+    .home-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+      background: var(--header-bg);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .home-header-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .home-header-logo img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+    .home-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .home-section-label {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 480px) {
+      .tools-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
 
-  <!-- HEADER -->
-  <header class="header">
-    <div class="header-inner">
-      <a href="index.html" class="logo">
-        <img src="Pro-Fab 3d logo.jpg" alt="Pro-Fab 3D" class="logo-img" />
+  <header class="home-header">
+    <a href="index.html" class="home-header-logo">
+      <img src="logo.png" alt="Layer Forge" />
+      Layer Forge
+    </a>
+    <div class="home-header-actions">
+      <a href="admin.html" class="btn-primary" style="padding:9px 20px;font-size:13px;border-radius:10px;text-decoration:none;">
+        Launch Tools →
       </a>
-      <nav class="nav">
-        <a href="index.html" class="nav-link active">Shop</a>
-        <a href="admin.html" class="nav-link nav-link--admin">Admin</a>
-      </nav>
-      <div class="nav-user">
-        <button class="nav-login-btn" id="navLoginBtn" onclick="openAuth('login')">Login / Sign Up</button>
-        <div class="nav-user-menu" id="navUserBtn" style="display:none;">
-          <button class="nav-account-btn" onclick="openMyOrders()">👤 <span id="navUserName"></span></button>
-          <button class="nav-logout-btn" onclick="logoutUser()" title="Log out">↩</button>
-        </div>
-      </div>
-      <button class="theme-toggle" id="shopSettingsGear" onclick="openShopSettings()" title="Settings" style="font-size:18px;">⚙️</button>
-      <button class="notif-bell-btn" id="notifBellBtn" onclick="openNotifications()" title="Notifications" style="display:none;">
-        🔔<span class="notif-badge" id="notifBadge" style="display:none;"></span>
-      </button>
-      <button class="cart-btn" id="cartBtn" onclick="toggleCart()">
-        <span class="cart-icon">🛒</span>
-        <span class="cart-count" id="cartCount">0</span>
-      </button>
     </div>
   </header>
 
-  <!-- ===== SIDEBAR ===== -->
-  <aside class="sidebar shop-sidebar" id="shopSidebar">
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">Shop</div>
-      <a href="#products" class="sidebar-item active">
-        <span class="sidebar-item-icon">🛍️</span> Products
-      </a>
-      <a href="#" class="sidebar-item" onclick="openCustomOrder(); return false;">
-        <span class="sidebar-item-icon">✏️</span> Custom Request
-      </a>
-    </div>
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">Links</div>
-      <a href="admin.html" class="sidebar-item">
-        <span class="sidebar-item-icon">⚙️</span> Admin Panel
-      </a>
-    </div>
-    <div class="sidebar-bottom" id="sidebarAccount">
-      <button class="sidebar-item" id="sidebarLoginBtn" onclick="openAuth('login')">
-        <span class="sidebar-item-icon">👤</span> Login / Sign Up
-      </button>
-      <div id="sidebarUserSection" style="display:none;">
-        <button class="sidebar-item" onclick="openMyOrders()">
-          <span class="sidebar-item-icon">👤</span> <span id="sidebarUserName"></span>
-        </button>
-        <button class="sidebar-item" onclick="logoutUser()">
-          <span class="sidebar-item-icon">↩</span> Log Out
-        </button>
+  <main>
+    <!-- Hero -->
+    <section class="home-hero">
+      <img src="logo.png" alt="Layer Forge" class="home-hero-logo" />
+      <h1>Design. Generate. Print.</h1>
+      <p>Layer Forge gives you powerful 3D design tools — right in your browser. Log in and start creating.</p>
+      <div class="home-cta">
+        <a href="admin.html" class="cta-primary">Get Started →</a>
       </div>
+    </section>
+
+    <!-- Tools -->
+    <div class="home-section-label">What you can build</div>
+    <div class="tools-grid">
+      <a href="admin.html" class="tool-card-home">
+        <div class="tool-card-home-icon">🖨️</div>
+        <h3>3D Shape Builder</h3>
+        <p>Combine boxes, spheres, cylinders, cones, and more into custom 3D models. Export to STL for printing.</p>
+        <div class="tool-card-home-badge">3D Studio →</div>
+      </a>
+      <a href="admin.html" class="tool-card-home">
+        <div class="tool-card-home-icon">🗿</div>
+        <h3>Statue Generator</h3>
+        <p>Upload a face photo and generate a 3D bas-relief portrait plaque or bust — ready to print.</p>
+        <div class="tool-card-home-badge">Statue Generator →</div>
+      </a>
+      <a href="admin.html" class="tool-card-home">
+        <div class="tool-card-home-icon">🖼️</div>
+        <h3>Lithophane</h3>
+        <p>Turn any photo into a 3D lithophane that glows when backlit. Perfect personalized gifts.</p>
+        <div class="tool-card-home-badge">Lithophane →</div>
+      </a>
+      <a href="admin.html" class="tool-card-home">
+        <div class="tool-card-home-icon">🗺️</div>
+        <h3>Map Generator</h3>
+        <p>Search any address and generate a 3D terrain relief map with real elevation data and buildings.</p>
+        <div class="tool-card-home-badge">Map Generator →</div>
+      </a>
     </div>
-  </aside>
+  </main>
 
-  <main class="page-content">
-
-  <!-- SHOP BANNER -->
-  <section class="shop-banner">
-    <div class="shop-banner-inner">
-      <div class="shop-banner-text">
-        <h1>Pro-Fab 3D Store</h1>
-        <p>Custom 3D printed parts — printed fresh when you order</p>
-      </div>
-      <button class="custom-order-pill" onclick="openCustomOrder()">
-        <span class="custom-order-pill-icon">✏️</span>
-        Need something custom? Request it →
-      </button>
-    </div>
-  </section>
-
-  <!-- PRODUCTS -->
-  <section class="shop-section" id="products">
-    <div class="container">
-      <div class="product-grid" id="productGrid"></div>
-      <div class="empty-state" id="emptyState" style="display:none;">
-        <div class="empty-icon">📦</div>
-        <h3>No products yet</h3>
-        <p>Head to the <a href="admin.html">Admin panel</a> to add your first product.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOOTER -->
   <footer class="footer">
     <div class="container">
       <div class="footer-inner">
-        <div class="logo"><img src="Pro-Fab 3d logo.jpg" alt="Pro-Fab 3D" class="logo-img" /></div>
-        <p class="footer-copy">© 2026 Pro-Fab 3D. All rights reserved.</p>
+        <div class="logo"><img src="logo.png" alt="Layer Forge" class="logo-img" /></div>
+        <p class="footer-copy">© 2026 Layer Forge. All rights reserved.</p>
       </div>
     </div>
   </footer>
 
-  </main><!-- /page-content -->
-
-  <!-- CART DRAWER -->
-  <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
-  <div class="cart-drawer" id="cartDrawer">
-    <div class="cart-header">
-      <h2>Your Cart</h2>
-      <button class="close-btn" onclick="toggleCart()">✕</button>
-    </div>
-    <div class="cart-items" id="cartItems"></div>
-    <div class="cart-footer">
-      <div class="cart-total">
-        <span>Total</span>
-        <span id="cartTotal">$0.00</span>
-      </div>
-      <button class="btn-primary btn-full" onclick="checkout()">Proceed to Checkout →</button>
-    </div>
-  </div>
-
-  <!-- PRODUCT MODAL -->
-  <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
-  <div class="modal" id="productModal">
-    <button class="close-btn modal-close" onclick="closeModal()">✕</button>
-    <div class="modal-content" id="modalContent"></div>
-  </div>
-
-  <!-- CONFIRM ORDER MODAL -->
-  <div class="modal-overlay" id="orderOverlay" onclick="closeOrder()"></div>
-  <div class="modal modal--confirm" id="orderModal">
-    <button class="close-btn modal-close" onclick="closeOrder()">✕</button>
-    <h2 class="modal-title">Confirm Order</h2>
-    <div id="confirmAddress"></div>
-    <form class="order-form" id="orderForm" onsubmit="submitOrder(event)">
-      <div class="form-group">
-        <label>Payment Method *</label>
-        <div class="payment-options">
-          <label class="payment-option">
-            <input type="radio" name="paymentMethod" value="cash" required onchange="onPaymentMethodChange()" />
-            <span class="payment-option-inner">💵 Cash</span>
-          </label>
-          <label class="payment-option">
-            <input type="radio" name="paymentMethod" value="merits" onchange="onPaymentMethodChange()" />
-            <span class="payment-option-inner">⭐ Merits</span>
-          </label>
-          <label class="payment-option" id="cardPaymentOption" style="display:none;">
-            <input type="radio" name="paymentMethod" value="card" onchange="onPaymentMethodChange()" />
-            <span class="payment-option-inner">💳 Card</span>
-          </label>
-        </div>
-      </div>
-      <!-- Stripe card element — shown only when Card is selected -->
-      <div id="stripeCardSection" style="display:none;">
-        <div id="stripeCardElement" class="stripe-card-element"></div>
-        <div id="stripeCardError" class="stripe-card-error"></div>
-      </div>
-      <div class="form-group">
-        <label>Notes / Special Requests</label>
-        <textarea name="notes" rows="2" placeholder="Color preferences, custom text, etc."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Reference Photo <span style="font-weight:400;opacity:.6;">(optional)</span></label>
-        <div class="photo-upload-area" id="orderPhotoArea" onclick="document.getElementById('orderPhotoInput').click()">
-          <div class="photo-upload-placeholder" id="orderPhotoPlaceholder">
-            <div class="photo-upload-icon">📷</div>
-            <div class="photo-upload-text">Tap to attach a photo</div>
-            <div class="photo-upload-sub">e.g. colour swatch, reference image</div>
-          </div>
-          <img id="orderPhotoPreview" class="photo-preview-img" style="display:none;" alt="Order reference photo" />
-          <button type="button" class="photo-remove-btn" id="orderPhotoRemoveBtn" style="display:none;" onclick="removeOrderPhoto(event)">✕ Remove</button>
-        </div>
-        <input type="file" id="orderPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleOrderPhoto(event)" />
-      </div>
-      <div class="order-summary" id="orderSummary"></div>
-      <button type="submit" class="btn-primary btn-full" id="placeOrderBtn">Place Order →</button>
-    </form>
-  </div>
-
-  <!-- SUCCESS MODAL -->
-  <div class="modal-overlay" id="successOverlay"></div>
-  <div class="modal modal--success" id="successModal">
-    <div class="success-icon">✅</div>
-    <h2>Order Placed!</h2>
-    <p id="successMsg">Thanks! We'll be in touch shortly to confirm your order and arrange payment.</p>
-    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-      <button class="btn-primary" onclick="printLastReceipt()">🖨️ Print Receipt</button>
-      <button class="btn-secondary" onclick="closeSuccess()">Continue Shopping</button>
-    </div>
-  </div>
-
-  <!-- CUSTOM ORDER MODAL -->
-  <div class="modal-overlay" id="customOverlay" onclick="closeCustomOrder()"></div>
-  <div class="modal modal--custom" id="customModal">
-    <button class="close-btn modal-close" onclick="closeCustomOrder()">✕</button>
-    <div class="custom-modal-icon">🖨️</div>
-    <h2 class="modal-title">Request a Custom Part</h2>
-    <p class="modal-sub">Describe what you need — size, function, material, anything that helps. We'll review it and get back to you with a quote.</p>
-    <form id="customForm" onsubmit="submitCustomOrder(event)">
-      <div class="form-group">
-        <label>Describe your part *</label>
-        <textarea name="description" rows="6" required placeholder="e.g. A wall-mounted bracket for a 15cm wide remote control, angled at 30°. Needs two screw holes for mounting. Black PLA preferred..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Reference Photo <span style="font-weight:400;opacity:.6;">(optional)</span></label>
-        <div class="photo-upload-area" id="photoUploadArea" onclick="document.getElementById('customPhotoInput').click()">
-          <div class="photo-upload-placeholder" id="photoPlaceholder">
-            <div class="photo-upload-icon">📷</div>
-            <div class="photo-upload-text">Tap to take a photo or upload one</div>
-            <div class="photo-upload-sub">Helps us understand exactly what you need</div>
-          </div>
-          <img id="customPhotoPreview" class="photo-preview-img" style="display:none;" alt="Reference photo" />
-          <button type="button" class="photo-remove-btn" id="photoRemoveBtn" style="display:none;" onclick="removeCustomPhoto(event)">✕ Remove</button>
-        </div>
-        <input type="file" id="customPhotoInput" accept="image/*" capture="environment" style="display:none;" onchange="handleCustomPhoto(event)" />
-      </div>
-      <div class="form-group">
-        <label>Payment Preference *</label>
-        <div class="payment-options">
-          <label class="payment-option">
-            <input type="radio" name="paymentMethod" value="cash" required />
-            <span class="payment-option-inner">💵 Cash</span>
-          </label>
-          <label class="payment-option">
-            <input type="radio" name="paymentMethod" value="merits" required />
-            <span class="payment-option-inner">⭐ Merits</span>
-          </label>
-        </div>
-      </div>
-      <button type="submit" class="btn-primary btn-full">Submit Request →</button>
-    </form>
-  </div>
-
-  <!-- AUTH MODAL -->
-  <div class="modal-overlay" id="authOverlay" onclick="closeAuth()"></div>
-  <div class="modal modal--auth" id="authModal">
-    <button class="close-btn modal-close" onclick="closeAuth()">✕</button>
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="authTabLogin" onclick="switchAuthTab('login')">Login</button>
-      <button class="auth-tab" id="authTabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
-    </div>
-
-    <div id="authLoginPanel">
-      <h2 class="auth-title">Welcome back</h2>
-      <form onsubmit="loginUser(event)">
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" name="loginEmail" required placeholder="you@example.com" autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" name="loginPwd" required placeholder="Your password" autocomplete="current-password" />
-        </div>
-        <div class="login-error" id="loginUserError"></div>
-        <button type="submit" class="btn-primary btn-full">Login →</button>
-      </form>
-      <p class="auth-switch">No account? <a href="#" onclick="switchAuthTab('signup'); return false;">Sign up free</a></p>
-    </div>
-
-    <div id="authSignupPanel" style="display:none;">
-      <h2 class="auth-title">Create an account</h2>
-      <form onsubmit="registerUser(event)">
-        <div class="form-row">
-          <div class="form-group">
-            <label>First Name *</label>
-            <input type="text" name="regFirstName" required placeholder="Jane" autocomplete="given-name" />
-          </div>
-          <div class="form-group">
-            <label>Last Name *</label>
-            <input type="text" name="regLastName" required placeholder="Smith" autocomplete="family-name" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Email *</label>
-          <input type="email" name="regEmail" required placeholder="you@example.com" autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label>Password *</label>
-          <input type="password" name="regPwd" required placeholder="Min 6 characters" minlength="6" autocomplete="new-password" />
-        </div>
-        <div class="form-group">
-          <label>Phone</label>
-          <input type="tel" name="regPhone" placeholder="(555) 000-0000" autocomplete="tel" />
-        </div>
-        <div class="login-error" id="regError"></div>
-        <button type="submit" class="btn-primary btn-full">Create Account →</button>
-      </form>
-      <p class="auth-switch">Have an account? <a href="#" onclick="switchAuthTab('login'); return false;">Login</a></p>
-    </div>
-  </div>
-
-  <!-- MY ORDERS MODAL -->
-  <div class="modal-overlay" id="myOrdersOverlay" onclick="closeMyOrders()"></div>
-  <div class="modal modal--myorders" id="myOrdersModal">
-    <button class="close-btn modal-close" onclick="closeMyOrders()">✕</button>
-    <h2 class="modal-title">My Orders</h2>
-    <div id="myOrdersList"></div>
-  </div>
-
-  <!-- SETTINGS PANEL -->
-  <div id="shopSettingsOverlay" onclick="closeShopSettings()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;opacity:0;transition:opacity .25s;"></div>
-  <div id="shopSettingsPanel" style="position:fixed;top:0;right:0;bottom:0;width:300px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);z-index:501;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);overflow-y:auto;display:flex;flex-direction:column;padding:0 0 32px;">
-
-    <!-- Panel header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;">
-      <span style="font-size:16px;font-weight:700;color:var(--text);">Menu</span>
-      <button onclick="closeShopSettings()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;padding:4px;">✕</button>
-    </div>
-
-    <!-- Quick actions (mobile-only, hidden on desktop via CSS) -->
-    <div class="settings-mobile-actions" style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;">
-      <button onclick="closeShopSettings();toggleCart();" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;">
-        🛒<span>Cart</span><span id="settingsCartCount" style="font-size:10px;color:var(--accent);font-weight:700;"></span>
-      </button>
-      <button id="settingsNotifBtn" onclick="closeShopSettings();openNotifications();" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;display:none;">
-        🔔<span>Alerts</span><span id="settingsNotifCount" style="font-size:10px;color:#ef5350;font-weight:700;"></span>
-      </button>
-      <button onclick="closeShopSettings();openCustomOrder();" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;">
-        ✏️<span>Custom</span>
-      </button>
-    </div>
-
-    <!-- Account section -->
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Account</div>
-      <div id="shopSettingsUser" style="font-size:13px;color:var(--text2);margin-bottom:10px;display:none;"></div>
-      <div id="shopSettingsAccountBtns" style="display:flex;flex-direction:column;gap:8px;">
-        <button id="shopSettingsLoginBtn" onclick="closeShopSettings();openAuth('login');" style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;">Login / Sign Up</button>
-        <button id="shopSettingsOrdersBtn" onclick="closeShopSettings();openMyOrders();" style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;display:none;">My Orders</button>
-        <button id="shopSettingsLogoutBtn" onclick="logoutUser();closeShopSettings();" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(240,98,146,0.3);background:rgba(240,98,146,0.08);color:#f06292;font-size:14px;font-weight:600;cursor:pointer;display:none;">Log Out</button>
-      </div>
-    </div>
-
-    <!-- Theme -->
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;">Theme</div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="localStorage.setItem('profab_theme','dark');initTheme();" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">🌙 Dark</button>
-        <button onclick="localStorage.setItem('profab_theme','light');initTheme();" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">☀️ Light</button>
-      </div>
-    </div>
-
-    <!-- Colors -->
-    <div style="padding:16px 20px;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;">Colors</div>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input type="color" id="shopColorBg" oninput="applyCustomColor('bg',this.value)" style="width:36px;height:32px;border:none;border-radius:8px;cursor:pointer;padding:2px;background:none;flex-shrink:0;" />
-          <span style="font-size:13px;color:var(--text);flex:1;">Background</span>
-          <input type="text" id="shopColorBgHex" placeholder="#0a0a0f" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('bg',this.value)" style="width:80px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;" />
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input type="color" id="shopColorText" oninput="applyCustomColor('text',this.value)" style="width:36px;height:32px;border:none;border-radius:8px;cursor:pointer;padding:2px;background:none;flex-shrink:0;" />
-          <span style="font-size:13px;color:var(--text);flex:1;">Text</span>
-          <input type="text" id="shopColorTextHex" placeholder="#f0f0f8" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('text',this.value)" style="width:80px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;" />
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input type="color" id="shopColorAccent" oninput="applyCustomColor('accent',this.value)" style="width:36px;height:32px;border:none;border-radius:8px;cursor:pointer;padding:2px;background:none;flex-shrink:0;" />
-          <span style="font-size:13px;color:var(--text);flex:1;">Accent</span>
-          <input type="text" id="shopColorAccentHex" placeholder="#7c6af7" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('accent',this.value)" style="width:80px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;" />
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input type="color" id="shopColorSurface" oninput="applyCustomColor('surface',this.value)" style="width:36px;height:32px;border:none;border-radius:8px;cursor:pointer;padding:2px;background:none;flex-shrink:0;" />
-          <span style="font-size:13px;color:var(--text);flex:1;">Cards</span>
-          <input type="text" id="shopColorSurfaceHex" placeholder="#1a1a26" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('surface',this.value)" style="width:80px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:monospace;" />
-        </div>
-      </div>
-      <button onclick="resetCustomColors()" style="margin-top:12px;width:100%;padding:9px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;">Reset Colors</button>
-      <div id="shopColorStatus" style="font-size:12px;color:var(--green);margin-top:8px;display:none;">Saved ✓</div>
-    </div>
-  </div>
-
-  <!-- NOTIFICATIONS MODAL -->
-  <div class="modal-overlay" id="notifOverlay" onclick="closeNotifications()"></div>
-  <div class="modal modal--notif" id="notifModal">
-    <button class="close-btn modal-close" onclick="closeNotifications()">✕</button>
-    <h2 class="modal-title">Notifications</h2>
-    <div id="notifList"></div>
-  </div>
-
-  <script src="config.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin — Pro-Fab 3D</title>
-  <link rel="icon" href="Pro-Fab 3d logo.jpg" />
-  <link rel="apple-touch-icon" href="Pro-Fab 3d logo.jpg" />
-  <meta name="apple-mobile-web-app-title" content="Pro-Fab 3D" />
+  <title>Admin — Layer Forge</title>
+  <link rel="icon" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta name="apple-mobile-web-app-title" content="Layer Forge" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#0a0a0f" />
@@ -20,21 +20,67 @@
   <!-- ===== LOGIN GATE ===== -->
   <div class="login-gate" id="loginGate">
     <div class="login-box">
-      <div class="login-logo"><img src="Pro-Fab 3d logo.jpg" alt="Pro-Fab 3D" class="logo-img logo-img--login" /></div>
-      <h2>Pro-Fab 3D Admin</h2>
-      <p>Sign in to your admin account.</p>
-      <form onsubmit="tryLogin(event)">
-        <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username" required />
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="loginInput" placeholder="Enter password" autocomplete="current-password" required />
-        </div>
-        <div class="login-error" id="loginError"></div>
-        <button type="submit" class="btn-primary">Sign In →</button>
-      </form>
+      <div class="login-logo"><img src="logo.png" alt="Layer Forge" class="logo-img logo-img--login" /></div>
+      <h2>Layer Forge</h2>
+
+      <!-- Tab switcher -->
+      <div class="auth-tabs" style="display:flex;gap:0;margin:12px 0 20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <button id="gateTabLogin" onclick="switchGateTab('login')"
+          style="flex:1;padding:10px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;">
+          Sign In
+        </button>
+        <button id="gateTabSignup" onclick="switchGateTab('signup')"
+          style="flex:1;padding:10px;border:none;background:var(--surface2);color:var(--text2);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;">
+          Sign Up
+        </button>
+      </div>
+
+      <!-- LOGIN PANEL -->
+      <div id="gatePanelLogin">
+        <form onsubmit="tryLogin(event)">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="loginInput" placeholder="Enter password" autocomplete="current-password" required />
+          </div>
+          <div class="login-error" id="loginError"></div>
+          <button type="submit" class="btn-primary" style="width:100%;margin-top:4px;">Sign In →</button>
+        </form>
+        <p style="text-align:center;font-size:13px;color:var(--text3);margin-top:14px;">
+          No account? <a href="#" onclick="switchGateTab('signup');return false;" style="color:var(--accent);font-weight:600;">Sign up free</a>
+        </p>
+      </div>
+
+      <!-- SIGNUP PANEL -->
+      <div id="gatePanelSignup" style="display:none;">
+        <form onsubmit="trySignup(event)">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="signupName" placeholder="Jane Smith" autocomplete="name" required />
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="signupUsername" placeholder="Choose a username" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="signupPwd" placeholder="Min 6 characters" minlength="6" autocomplete="new-password" required />
+          </div>
+          <div class="form-group">
+            <label>Confirm Password</label>
+            <input type="password" id="signupConfirm" placeholder="Re-enter password" autocomplete="new-password" required />
+          </div>
+          <div class="login-error" id="signupError"></div>
+          <button type="submit" class="btn-primary" style="width:100%;margin-top:4px;">Create Account →</button>
+        </form>
+        <p style="text-align:center;font-size:13px;color:var(--text3);margin-top:14px;">
+          Already have an account? <a href="#" onclick="switchGateTab('login');return false;" style="color:var(--accent);font-weight:600;">Sign in</a>
+        </p>
+      </div>
+
       <div class="login-footer" id="loginFooter"></div>
     </div>
   </div>
@@ -43,12 +89,12 @@
   <header class="header admin-content" id="adminHeader">
     <div class="header-inner">
       <a href="index.html" class="logo">
-        <img src="Pro-Fab 3d logo.jpg" alt="Pro-Fab 3D" class="logo-img" />
+        <img src="logo.png" alt="Layer Forge" class="logo-img" />
       </a>
       <nav class="nav">
-        <a href="index.html" class="nav-link">← Shop</a>
+        <a href="index.html" class="nav-link">← Home</a>
       </nav>
-      <span id="adminUserBadge" style="margin-left:auto; background:rgba(124,106,247,0.15); border:1px solid rgba(124,106,247,0.4); color:var(--accent); padding:5px 14px; border-radius:20px; font-size:13px; font-weight:600;">Admin</span>
+      <span id="adminUserBadge" style="margin-left:auto; background:rgba(224,32,32,0.15); border:1px solid rgba(224,32,32,0.4); color:var(--accent); padding:5px 14px; border-radius:20px; font-size:13px; font-weight:600;">Admin</span>
       <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle light/dark mode">🌙</button>
     </div>
   </header>
@@ -56,13 +102,7 @@
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar admin-content" id="adminSidebar">
     <div class="sidebar-group">
-      <div class="sidebar-group-label">Products</div>
-      <button class="sidebar-item active" id="sbi-add" onclick="switchTab('add')">
-        <span class="sidebar-item-icon">📦</span> Add Product
-      </button>
-      <button class="sidebar-item" id="sbi-manage" onclick="switchTab('manage')">
-        <span class="sidebar-item-icon">🗂️</span> Manage Products
-      </button>
+      <div class="sidebar-group-label">3D Tools</div>
       <button class="sidebar-item" id="sbi-studio" onclick="switchTab('studio')">
         <span class="sidebar-item-icon">🖨️</span> 3D Studio
       </button>
@@ -77,44 +117,38 @@
       </button>
     </div>
     <div class="sidebar-group">
-      <div class="sidebar-group-label">Orders</div>
+      <div class="sidebar-group-label">Admin</div>
+      <button class="sidebar-item" id="sbi-add" onclick="switchTab('add')">
+        <span class="sidebar-item-icon">📦</span> Add Product
+      </button>
+      <button class="sidebar-item" id="sbi-manage" onclick="switchTab('manage')">
+        <span class="sidebar-item-icon">🗂️</span> Manage Products
+      </button>
       <button class="sidebar-item" id="sbi-orders" onclick="switchTab('orders')">
         <span class="sidebar-item-icon">🛒</span> Orders
       </button>
       <button class="sidebar-item" id="sbi-custom" onclick="switchTab('custom')">
         <span class="sidebar-item-icon">✏️</span> Custom Requests
       </button>
-    </div>
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">People</div>
       <button class="sidebar-item" id="sbi-users" onclick="switchTab('users')">
         <span class="sidebar-item-icon">👥</span> Accounts
       </button>
-    </div>
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">Finance</div>
       <button class="sidebar-item" id="sbi-sales" onclick="switchTab('sales')">
         <span class="sidebar-item-icon">🏷️</span> Sales
       </button>
       <button class="sidebar-item" id="sbi-revenue" onclick="switchTab('revenue')">
         <span class="sidebar-item-icon">💰</span> Revenue
       </button>
-    </div>
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">Time</div>
       <button class="sidebar-item" id="sbi-clockin" onclick="switchTab('clockin')">
         <span class="sidebar-item-icon">⏱️</span> Hours
       </button>
-    </div>
-    <div class="sidebar-group">
-      <div class="sidebar-group-label">System</div>
       <button class="sidebar-item" id="sbi-settings" onclick="switchTab('settings')">
         <span class="sidebar-item-icon">⚙️</span> Settings
       </button>
     </div>
     <div class="sidebar-bottom">
       <a href="index.html" class="sidebar-item">
-        <span class="sidebar-item-icon">←</span> Back to Shop
+        <span class="sidebar-item-icon">←</span> Home
       </a>
     </div>
   </aside>
@@ -172,12 +206,12 @@
     </div>
 
     <div class="admin-tabs">
-      <button class="tab-btn active" onclick="switchTab('add')">+ Add Product</button>
-      <button class="tab-btn" onclick="switchTab('manage')">Manage Products</button>
-      <button class="tab-btn" onclick="switchTab('studio')">🖨️ 3D Studio</button>
+      <button class="tab-btn active" onclick="switchTab('studio')">🖨️ 3D Studio</button>
       <button class="tab-btn" onclick="switchTab('statue')">🗿 Statue Generator</button>
       <button class="tab-btn" onclick="switchTab('litho')">🖼️ Lithophane</button>
       <button class="tab-btn" onclick="switchTab('map')">🗺️ Map Generator</button>
+      <button class="tab-btn" onclick="switchTab('add')">+ Add Product</button>
+      <button class="tab-btn" onclick="switchTab('manage')">Manage Products</button>
       <button class="tab-btn" onclick="switchTab('orders')">Orders <span id="orderBadge"></span></button>
       <button class="tab-btn" onclick="switchTab('custom')">Custom Requests <span id="customBadge"></span></button>
       <button class="tab-btn" onclick="switchTab('users')">Accounts <span id="usersBadge"></span></button>
@@ -188,7 +222,7 @@
     </div>
 
     <!-- ADD PRODUCT TAB -->
-    <div class="tab-panel active" id="tab-add">
+    <div class="tab-panel" id="tab-add">
       <form class="add-form" id="addProductForm" onsubmit="addProduct(event)" style="max-width:420px;">
 
         <!-- PHOTO -->
@@ -490,8 +524,8 @@
             <div>
               <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Accent</label>
               <div style="display:flex;align-items:center;gap:8px;">
-                <input type="color" id="colorAccent" value="#7c6af7" oninput="applyCustomColor('accent',this.value)" style="width:40px;height:36px;border:none;border-radius:8px;cursor:pointer;padding:2px;" />
-                <input type="text" id="colorAccentHex" value="#7c6af7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('accent',this.value)" style="flex:1;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;" maxlength="7" />
+                <input type="color" id="colorAccent" value="#e02020" oninput="applyCustomColor('accent',this.value)" style="width:40px;height:36px;border:none;border-radius:8px;cursor:pointer;padding:2px;" />
+                <input type="text" id="colorAccentHex" value="#e02020" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))applyCustomColor('accent',this.value)" style="flex:1;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;" maxlength="7" />
               </div>
             </div>
             <div>
@@ -560,7 +594,7 @@
     </div>
 
     <!-- 3D STUDIO TAB -->
-    <div class="tab-panel" id="tab-studio">
+    <div class="tab-panel active" id="tab-studio">
 
       <!-- Header -->
       <div class="tool-header">
@@ -626,7 +660,7 @@
               <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">
                 <input id="sbSelName" type="text" placeholder="Shape name" oninput="sbRenameSelected(this.value)"
                   style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 8px;color:var(--text);font-size:13px;font-weight:600;" />
-                <input id="sbSelColor" type="color" value="#7c6af7" oninput="sbColorSelected(this.value)" title="Pick shape color"
+                <input id="sbSelColor" type="color" value="#e02020" oninput="sbColorSelected(this.value)" title="Pick shape color"
                   style="width:34px;height:30px;border:none;border-radius:7px;cursor:pointer;padding:2px;background:none;" />
               </div>
 
@@ -754,7 +788,7 @@
           <div id="mgInfo" style="font-size:11px;color:var(--text3);min-height:14px;text-align:center;"></div>
 
           <!-- How it works -->
-          <div class="tool-card" style="border-color:rgba(124,106,247,0.25);background:rgba(124,106,247,0.06);">
+          <div class="tool-card" style="border-color:rgba(224,32,32,0.25);background:rgba(224,32,32,0.06);">
             <div class="tool-card-label" style="color:var(--accent);">How it works</div>
             <div style="font-size:11px;color:var(--text2);line-height:1.65;">
               1. Search for any address or place<br>
@@ -1099,8 +1133,9 @@
     function hasPermission(tab) {
       const s = getAdminSession();
       if (!s) return false;
-      // Owners always have every permission, including tabs added after account creation.
       if (s.role === 'owner') return true;
+      // 3D tools are available to every logged-in user
+      if (['studio','statue','litho','map'].includes(tab)) return true;
       return s.permissions.includes(tab);
     }
 
@@ -1130,7 +1165,7 @@
     function showSetupMode() {
       document.getElementById('loginGate').innerHTML = `
         <div class="login-box">
-          <div class="login-logo"><img src="Pro-Fab 3d logo.jpg" alt="Pro-Fab 3D" class="logo-img logo-img--login" /></div>
+          <div class="login-logo"><img src="logo.png" alt="Layer Forge" class="logo-img logo-img--login" /></div>
           <h2>Set Up Admin Access</h2>
           <p>Create the owner account for this admin panel.</p>
           <form onsubmit="setupOwner(event)">
@@ -1202,6 +1237,62 @@
       setTimeout(() => err.classList.remove('visible'), 4000);
     }
 
+    function switchGateTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('gatePanelLogin').style.display  = isLogin ? '' : 'none';
+      document.getElementById('gatePanelSignup').style.display = isLogin ? 'none' : '';
+      document.getElementById('gateTabLogin').style.background  = isLogin ? 'var(--accent)' : 'var(--surface2)';
+      document.getElementById('gateTabLogin').style.color       = isLogin ? '#fff' : 'var(--text2)';
+      document.getElementById('gateTabSignup').style.background = isLogin ? 'var(--surface2)' : 'var(--accent)';
+      document.getElementById('gateTabSignup').style.color      = isLogin ? 'var(--text2)' : '#fff';
+      document.getElementById('loginError').textContent  = '';
+      document.getElementById('signupError').textContent = '';
+    }
+
+    async function trySignup(e) {
+      e.preventDefault();
+      const err      = document.getElementById('signupError');
+      const name     = document.getElementById('signupName').value.trim();
+      const username = document.getElementById('signupUsername').value.trim().toLowerCase();
+      const pwd      = document.getElementById('signupPwd').value;
+      const confirm  = document.getElementById('signupConfirm').value;
+
+      err.textContent = ''; err.classList.remove('visible');
+
+      if (pwd !== confirm) {
+        err.textContent = 'Passwords do not match.'; err.classList.add('visible'); return;
+      }
+      if (pwd.length < 6) {
+        err.textContent = 'Password must be at least 6 characters.'; err.classList.add('visible'); return;
+      }
+      if (!/^[a-z0-9_]+$/.test(username)) {
+        err.textContent = 'Username may only contain letters, numbers, and underscores.'; err.classList.add('visible'); return;
+      }
+
+      const accounts = getAdminAccounts();
+      if (accounts.find(a => a.username.toLowerCase() === username)) {
+        err.textContent = 'That username is already taken.'; err.classList.add('visible'); return;
+      }
+
+      const salt = crypto.randomUUID();
+      const hash = await hashPwd(salt, pwd);
+      const newAcct = {
+        id: 'acct-' + Date.now().toString(36),
+        username, name, salt, hash,
+        role: 'user',
+        permissions: ['studio','statue','litho','map']
+      };
+      accounts.push(newAcct);
+      saveAdminAccounts(accounts);
+      _dbPost('/.netlify/functions/admin-accounts', newAcct);
+
+      startSession(newAcct);
+      document.getElementById('loginGate').style.display = 'none';
+      document.querySelectorAll('.admin-content').forEach(el => el.classList.add('unlocked'));
+      initAdmin();
+      showToast('Account created — welcome, ' + (name || username) + '!');
+    }
+
     function logout() {
       sessionStorage.removeItem('profab_admin_session');
       location.reload();
@@ -1251,7 +1342,7 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div>
               <span style="font-weight:700;font-size:15px;color:var(--text);">${a.username}</span>
-              <span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;background:${a.role==='owner'?'rgba(124,106,247,0.2)':'rgba(76,175,80,0.15)'};color:${a.role==='owner'?'var(--accent)':'#66bb6a'}">${a.role}</span>
+              <span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;background:${a.role==='owner'?'rgba(224,32,32,0.2)':'rgba(76,175,80,0.15)'};color:${a.role==='owner'?'var(--accent)':'#66bb6a'}">${a.role}</span>
             </div>
             ${a.id !== session.id ? `<button class="delete-btn" onclick="deleteAdminAccount('${a.id}')">Remove</button>` : '<span style="font-size:12px;color:var(--text3);">(you)</span>'}
           </div>
@@ -1332,7 +1423,7 @@
         if (fallback && fallback !== tab) { switchTab(fallback); return; }
       }
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['add', 'manage', 'studio', 'statue', 'litho', 'map', 'orders', 'custom', 'users', 'sales', 'revenue', 'clockin', 'settings'];
+        const tabs = ['studio', 'statue', 'litho', 'map', 'add', 'manage', 'orders', 'custom', 'users', 'sales', 'revenue', 'clockin', 'settings'];
         b.classList.toggle('active', tabs[i] === tab);
       });
       document.querySelectorAll('[id^="sbi-"]').forEach(el => {
@@ -2144,8 +2235,8 @@
       if (Notification.permission === 'granted') {
         const n = new Notification(title, {
           body,
-          icon: 'Pro-Fab 3d logo.jpg',
-          badge: 'Pro-Fab 3d logo.jpg',
+          icon: 'logo.png',
+          badge: 'logo.png',
           tag: order.id,
           requireInteraction: true
         });
@@ -2201,7 +2292,7 @@
       if (badge && session) badge.textContent = session.username;
 
       // Hide tabs/nav items the user doesn't have permission for
-      const allTabNames = ['add','manage','studio','statue','litho','map','orders','custom','users','sales','revenue','clockin','settings'];
+      const allTabNames = ['studio','statue','litho','map','add','manage','orders','custom','users','sales','revenue','clockin','settings'];
       allTabNames.forEach(tab => {
         const visible = hasPermission(tab);
         // top tab bar button (index matches allTabNames order)
@@ -2501,7 +2592,7 @@
       }
       const buf  = new ArrayBuffer(84 + tris.length * 50);
       const view = new DataView(buf);
-      const hdr  = 'Pro-Fab 3D STL';
+      const hdr  = 'Layer Forge STL';
       for (let i = 0; i < 80; i++) view.setUint8(i, i < hdr.length ? hdr.charCodeAt(i) : 0);
       view.setUint32(80, tris.length, true);
       let off = 84;
@@ -2624,7 +2715,7 @@
     function _sbApplyMat(o) {
       const isSel  = o.id === _sbSelected;
       const isHov  = o.id === _sbHovered && !isSel;
-      const col    = o.color || '#7c6af7';
+      const col    = o.color || '#e02020';
       const mat    = o.mesh.material;
       if (isSel) {
         mat.color.set(0xf7a26a); mat.emissive.set(0x3a1a00); mat.roughness = 0.45;
@@ -2672,7 +2763,7 @@
       if (!_sbScene) return;
       _sbPushUndo();
       const id    = ++_sbIdSeq;
-      const color = '#7c6af7';
+      const color = '#e02020';
       const name  = type.charAt(0).toUpperCase() + type.slice(1) + ' ' + id;
       const geom  = _sbGeomFor(type);
       const mat   = new THREE.MeshStandardMaterial({ color, metalness: 0.15, roughness: 0.55 });
@@ -2704,7 +2795,7 @@
           style="display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:7px;cursor:pointer;
                  background:${o.id===_sbSelected?'rgba(124,106,247,.18)':'transparent'};
                  border:1px solid ${o.id===_sbSelected?'rgba(124,106,247,.45)':'transparent'};">
-          <span style="width:10px;height:10px;border-radius:50%;background:${o.color||'#7c6af7'};flex-shrink:0;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:${o.color||'#e02020'};flex-shrink:0;"></span>
           <span style="font-size:12px;flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${o.name}</span>
           <button onclick="event.stopPropagation();_sbPushUndo();studioDeleteById(${o.id})"
             style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1;flex-shrink:0;">✕</button>
@@ -2722,7 +2813,7 @@
       if (!obj || !tx) return;
       tx.style.display = '';
       document.getElementById('sbSelName').value  = obj.name;
-      document.getElementById('sbSelColor').value = obj.color || '#7c6af7';
+      document.getElementById('sbSelColor').value = obj.color || '#e02020';
       _sbBuildSliders(obj);
       _sbUpdateDimLabel(obj);
     }
@@ -2826,7 +2917,7 @@
       _sbPushUndo();
       const id   = ++_sbIdSeq;
       const geom = _sbGeomFor(src.type);
-      const mat  = new THREE.MeshStandardMaterial({ color: src.color || '#7c6af7', metalness: 0.15, roughness: 0.55 });
+      const mat  = new THREE.MeshStandardMaterial({ color: src.color || '#e02020', metalness: 0.15, roughness: 0.55 });
       const mesh = new THREE.Mesh(geom, mat);
       mesh.position.copy(src.mesh.position).x += src.mesh.scale.x + 5;
       mesh.scale.copy(src.mesh.scale);
@@ -2834,7 +2925,7 @@
       mesh.castShadow = true;
       mesh.userData.studioId = id;
       _sbScene.add(mesh);
-      _sbObjects.push({ id, type: src.type, name: src.name + ' copy', color: src.color || '#7c6af7', mesh });
+      _sbObjects.push({ id, type: src.type, name: src.name + ' copy', color: src.color || '#e02020', mesh });
       _sbSelectObj(id);
     }
 
@@ -2884,7 +2975,7 @@
       _sbObjects = [];
       _sbIdSeq   = 0;
       for (const d of data) {
-        const mat  = new THREE.MeshStandardMaterial({ color: d.color || '#7c6af7', metalness: 0.15, roughness: 0.55 });
+        const mat  = new THREE.MeshStandardMaterial({ color: d.color || '#e02020', metalness: 0.15, roughness: 0.55 });
         const mesh = new THREE.Mesh(_sbGeomFor(d.type), mat);
         mesh.position.set(d.px, d.py, d.pz);
         mesh.scale.set(d.sx, d.sy, d.sz);
@@ -3299,7 +3390,7 @@
         view.setFloat32(off,cx,true);off+=4; view.setFloat32(off,cy,true);off+=4; view.setFloat32(off,cz,true);off+=4;
         view.setUint16(off,0,true);off+=2;
       }
-      _downloadSTL(buf, 'profab-litho-' + _lithoType + '.stl');
+      _downloadSTL(buf, 'layerforge-litho-' + _lithoType + '.stl');
       showToast('STL exported \u2713');
     }
     // ===== END 3D STUDIO ==========================================================
@@ -3718,7 +3809,7 @@
     function statueExportSTL() {
       if (!_sgMeshes.length) { showToast('Generate a statue first.'); return; }
       const buf = _buildSTL(_sgMeshes);
-      _downloadSTL(buf, 'profab-statue-' + _sgStyle + '.stl');
+      _downloadSTL(buf, 'layerforge-statue-' + _sgStyle + '.stl');
       showToast('STL exported \u2713');
     }
 
@@ -4187,7 +4278,7 @@
       const loc = _mapCenterLat !== null
         ? `${_mapCenterLat.toFixed(3)}_${_mapCenterLon.toFixed(3)}`
         : 'terrain';
-      _downloadSTL(buf, `profab-map-${_mapScale}-${loc}.stl`);
+      _downloadSTL(buf, `layerforge-map-${_mapScale}-${loc}.stl`);
       showToast(`STL exported ✓ (terrain + ${_mapBuildingMeshes.length} buildings)`);
     }
 
