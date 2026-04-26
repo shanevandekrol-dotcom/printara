@@ -33,6 +33,7 @@
       <button class="sidebar-item" id="sbi-statue" onclick="switchTab('statue')"><span class="sidebar-item-icon">🗿</span> Statue Generator</button>
       <button class="sidebar-item" id="sbi-litho" onclick="switchTab('litho')"><span class="sidebar-item-icon">🖼️</span> Lithophane</button>
       <button class="sidebar-item" id="sbi-map" onclick="switchTab('map')"><span class="sidebar-item-icon">🗺️</span> Map Generator</button>
+      <button class="sidebar-item" id="sbi-openscad" onclick="switchTab('openscad')"><span class="sidebar-item-icon">📐</span> OpenSCAD</button>
     </div>
     <div class="sidebar-bottom">
       <a href="index.html" class="sidebar-item"><span class="sidebar-item-icon">←</span> Home</a>
@@ -44,6 +45,7 @@
     <button class="admin-bottom-nav-item" id="mni-statue" onclick="switchTab('statue')"><span class="admin-bottom-nav-icon">🗿</span>Statue</button>
     <button class="admin-bottom-nav-item" id="mni-litho" onclick="switchTab('litho')"><span class="admin-bottom-nav-icon">🖼️</span>Litho</button>
     <button class="admin-bottom-nav-item" id="mni-map" onclick="switchTab('map')"><span class="admin-bottom-nav-icon">🗺️</span>Map</button>
+    <button class="admin-bottom-nav-item" id="mni-openscad" onclick="switchTab('openscad')"><span class="admin-bottom-nav-icon">📐</span>OpenSCAD</button>
   </nav>
 
   <div class="admin-wrap admin-content unlocked">
@@ -52,6 +54,7 @@
       <button class="tab-btn" onclick="switchTab('statue')">🗿 Statue Generator</button>
       <button class="tab-btn" onclick="switchTab('litho')">🖼️ Lithophane</button>
       <button class="tab-btn" onclick="switchTab('map')">🗺️ Map Generator</button>
+      <button class="tab-btn" onclick="switchTab('openscad')">📐 OpenSCAD</button>
     </div>
 
     <div class="tab-panel active" id="tab-studio">
@@ -476,6 +479,35 @@
       </div>
     </div><!-- /tab-statue -->
 
+    <!-- ===== OPENSCAD TAB ===== -->
+    <div class="tab-panel" id="tab-openscad" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:500px;">
+      <div class="tool-header" style="padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div class="tool-header-icon">📐</div>
+        <div style="flex:1;">
+          <h2 class="tool-header-title">OpenSCAD</h2>
+          <p class="tool-header-sub">Script-based 3D CAD modelling — powered by OpenSCAD.cloud</p>
+        </div>
+        <a href="https://openscad.cloud" target="_blank" rel="noopener"
+          style="padding:8px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;color:var(--text2);text-decoration:none;white-space:nowrap;">
+          Open in new tab ↗
+        </a>
+      </div>
+      <iframe
+        id="openscadFrame"
+        src=""
+        style="flex:1;width:100%;border:none;background:#1a1a1a;"
+        allow="cross-origin-isolated"
+        title="OpenSCAD.cloud">
+      </iframe>
+      <div id="openscadFallback" style="display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:16px;text-align:center;padding:40px;">
+        <div style="font-size:56px;">📐</div>
+        <h3 style="margin:0;font-size:20px;">OpenSCAD.cloud</h3>
+        <p style="color:var(--text2);max-width:400px;margin:0;">OpenSCAD.cloud doesn't allow embedding — click below to open it in a new tab.</p>
+        <a href="https://openscad.cloud" target="_blank" rel="noopener" class="btn-primary" style="padding:13px 28px;font-size:15px;text-decoration:none;">
+          Launch OpenSCAD.cloud ↗
+        </a>
+      </div>
+    </div><!-- /tab-openscad -->
 
   </div>
 
@@ -490,7 +522,7 @@
       if (Date.now() - s.ts > SESSION_TTL) { sessionStorage.removeItem('profab_admin_session'); return null; }
       return s;
     }
-    const TOOL_TABS = ['studio','statue','litho','map'];
+    const TOOL_TABS = ['studio','statue','litho','map','openscad'];
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', TOOL_TABS[i]===tab));
       document.querySelectorAll('[id^="sbi-"]').forEach(el => el.classList.toggle('active', el.id==='sbi-'+tab));
@@ -498,10 +530,22 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-'+tab).classList.add('active');
       window.scrollTo({top:0,behavior:'smooth'});
-      if (tab==='studio') initStudio();
-      if (tab==='litho')  initLitho();
-      if (tab==='map')    initMapGen();
-      if (tab==='statue') initStatueGen();
+      if (tab==='studio')   initStudio();
+      if (tab==='litho')    initLitho();
+      if (tab==='map')      initMapGen();
+      if (tab==='statue')   initStatueGen();
+      if (tab==='openscad') initOpenSCAD();
+    }
+
+    function initOpenSCAD() {
+      const frame = document.getElementById('openscadFrame');
+      if (frame && !frame.src) {
+        frame.src = 'https://openscad.cloud';
+        frame.addEventListener('error', () => {
+          frame.style.display = 'none';
+          document.getElementById('openscadFallback').style.display = 'flex';
+        });
+      }
     }
 
     // ===== 3D STUDIO =================================================================
