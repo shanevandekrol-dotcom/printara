@@ -80,14 +80,34 @@
     .type-tab.active { background:var(--accent); color:#fff; }
     .type-tab.bambu.active { background:var(--orange); }
 
-    /* Quick reconnect card */
-    #reconnect-card {
-      background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
-      padding:10px 12px; margin-bottom:12px; display:flex; align-items:center; gap:10px;
+    /* Big IP input */
+    #ip-wrap { position:relative; margin-bottom:10px; }
+    #wifi-ip-big {
+      width:100%; padding:10px 12px; font-size:14px; font-weight:700;
+      font-family:'Fira Code',monospace; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius);
+      color:var(--text); outline:none; letter-spacing:.5px;
     }
-    #reconnect-card .rc-info { flex:1; }
-    #reconnect-card .rc-type { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--text3); }
-    #reconnect-card .rc-ip   { font-size:12px; font-weight:700; color:var(--text); margin-top:2px; font-family:'Fira Code',monospace; }
+    #wifi-ip-big:focus { border-color:var(--accent); }
+    #wifi-ip-big.bambu-mode:focus { border-color:var(--orange); }
+    #detecting-tag {
+      position:absolute; right:10px; top:50%; transform:translateY(-50%);
+      font-size:10px; font-weight:700; color:var(--accent); display:none;
+    }
+
+    /* Options toggle */
+    #opts-toggle { font-size:11px; color:var(--text3); cursor:pointer; display:flex; align-items:center; gap:4px; margin-bottom:8px; user-select:none; }
+    #opts-toggle:hover { color:var(--text2); }
+    #opts-panel { display:none; }
+    #opts-panel.open { display:block; }
+
+    /* Auto-detected type badge */
+    #detected-type {
+      font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;
+      background:var(--accent-dim); color:var(--accent); border:1px solid rgba(0,153,255,.3);
+      display:none; margin-bottom:8px; text-align:center;
+    }
+    #detected-type.bambu { background:var(--orange-dim); color:var(--orange); border-color:rgba(255,107,53,.3); }
 
     /* Bambu FTP info box */
     #bambu-ftp-box {
@@ -205,46 +225,50 @@
     <div class="panel">
       <div class="panel-title">Connect Printer</div>
 
-      <!-- Quick reconnect (shown when saved session exists) -->
-      <div id="reconnect-card" class="hidden">
-        <div class="rc-info">
-          <div class="rc-type" id="rc-type-label">OctoPrint</div>
-          <div class="rc-ip"   id="rc-ip-label">—</div>
+      <!-- Big IP input -->
+      <div id="ip-wrap">
+        <input type="text" id="wifi-ip-big" placeholder="192.168.1.100" spellcheck="false" autocomplete="off" autofocus />
+        <span id="detecting-tag">detecting…</span>
+      </div>
+
+      <!-- Auto-detected type badge -->
+      <div id="detected-type"></div>
+
+      <!-- Connect / Disconnect -->
+      <button class="btn-primary" id="connect-btn" onclick="connectWifi()" style="width:100%;padding:10px;font-size:13px;margin-bottom:8px">⚡ Connect</button>
+      <button class="btn-secondary hidden" id="disconnect-btn" onclick="disconnectWifi()" style="width:100%;margin-bottom:8px">Disconnect</button>
+
+      <!-- Options toggle -->
+      <div id="opts-toggle" onclick="toggleOpts()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        Options
+        <span id="opts-arrow" style="margin-left:auto">›</span>
+      </div>
+      <div id="opts-panel">
+        <div class="field">
+          <label>OctoPrint API Key <span style="color:var(--text3);font-size:10px">(if required)</span></label>
+          <input type="password" id="wifi-key" placeholder="Leave blank to auto-detect…" spellcheck="false" />
         </div>
-        <button class="btn-primary" id="rc-btn" onclick="quickReconnect()" style="white-space:nowrap">⚡ Reconnect</button>
+        <div class="field">
+          <label>Bambu Access Code <span style="color:var(--text3);font-size:10px">(Settings → LAN on screen)</span></label>
+          <input type="password" id="bambu-pin" placeholder="8-character code" spellcheck="false" maxlength="8" />
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Force type</label>
+          <select id="force-type">
+            <option value="">Auto-detect</option>
+            <option value="octoprint">OctoPrint</option>
+            <option value="moonraker">Moonraker</option>
+            <option value="bambu">Bambu Lab</option>
+          </select>
+        </div>
       </div>
 
-      <div class="type-tabs">
-        <button class="type-tab active"       data-type="octoprint" onclick="selectType('octoprint')">OctoPrint</button>
-        <button class="type-tab"              data-type="moonraker" onclick="selectType('moonraker')">Moonraker</button>
-        <button class="type-tab bambu"        data-type="bambu"     onclick="selectType('bambu')">Bambu Lab</button>
-      </div>
-
-      <!-- shared: IP -->
-      <div class="field">
-        <label>Printer IP Address</label>
-        <input type="text" id="wifi-ip" placeholder="192.168.1.100" spellcheck="false" />
-      </div>
-
-      <!-- OctoPrint: API key -->
-      <div class="field" id="apikey-row">
-        <label>API Key <span style="color:var(--text3);font-size:10px">(Settings → API)</span></label>
-        <input type="password" id="wifi-key" placeholder="Paste API key…" spellcheck="false" />
-      </div>
-
-      <!-- Bambu: access code -->
-      <div class="field hidden" id="bambu-pin-row">
-        <label>Access Code <span style="color:var(--text3);font-size:10px">(printer touchscreen → Settings → LAN)</span></label>
-        <input type="password" id="bambu-pin" placeholder="8-character code" spellcheck="false" maxlength="8" />
-      </div>
-
-      <div class="btn-row" style="margin-top:4px">
-        <button class="btn-primary" id="connect-btn" onclick="connectWifi()">📶 Connect</button>
-        <button class="btn-secondary hidden" id="disconnect-btn" onclick="disconnectWifi()">Disconnect</button>
-      </div>
+      <!-- hidden compat alias -->
+      <input type="hidden" id="wifi-ip" />
 
       <!-- Bambu FTP info (shown after connect) -->
-      <div id="bambu-ftp-box" class="hidden">
+      <div id="bambu-ftp-box" class="hidden" style="margin-top:10px">
         <strong>Upload files via FTP</strong><br/>
         Host: <code id="bambu-ftp-host">—</code><br/>
         User: <code>bblp</code> &nbsp; Pass: <code id="bambu-ftp-pass">—</code><br/>
@@ -252,10 +276,6 @@
         Path: <code>/model/</code>
         <div id="bambu-serial-detected" class="hidden"></div>
       </div>
-
-      <p id="conn-hint" style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5">
-        Works with any printer running <strong style="color:var(--text2)">OctoPrint</strong> or <strong style="color:var(--text2)">Klipper + Moonraker</strong>.
-      </p>
     </div>
 
     <div class="panel">
@@ -348,96 +368,127 @@ let bambuSerial = '';
 let bambuPin = '';
 let bambuLastState = '';
 
+// Options panel
+function toggleOpts() {
+  const p = document.getElementById('opts-panel');
+  const a = document.getElementById('opts-arrow');
+  const open = p.classList.toggle('open');
+  a.textContent = open ? '⌄' : '›';
+}
+
+// IP helper — reads the big input
+function getIP() { return document.getElementById('wifi-ip-big').value.trim(); }
+
 // ── Credential persistence ─────────────────────────────────────────────────────
-const LS_KEY = 'printara_conn_v1';
+const LS_KEY = 'printara_conn_v2';
 
 function saveCredentials() {
   const data = {
-    type:   printerType,
-    ip:     document.getElementById('wifi-ip').value.trim(),
-    key:    document.getElementById('wifi-key').value.trim(),
-    pin:    document.getElementById('bambu-pin').value.trim(),
+    type: printerType,
+    ip:   getIP(),
+    key:  document.getElementById('wifi-key').value.trim(),
+    pin:  document.getElementById('bambu-pin').value.trim(),
+    forceType: document.getElementById('force-type').value,
   };
   if (data.ip) localStorage.setItem(LS_KEY, JSON.stringify(data));
 }
 
-function loadCredentials() {
+function loadAndAutoConnect() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
     const d = JSON.parse(raw);
     if (!d.ip) return;
-    selectType(d.type || 'octoprint');
-    document.getElementById('wifi-ip').value  = d.ip  || '';
-    document.getElementById('wifi-key').value = d.key || '';
-    document.getElementById('bambu-pin').value = d.pin || '';
-    // Show quick reconnect card
-    const typeNames = { octoprint:'OctoPrint', moonraker:'Moonraker', bambu:'Bambu Lab' };
-    document.getElementById('rc-type-label').textContent = typeNames[d.type] || d.type;
-    document.getElementById('rc-ip-label').textContent   = d.ip;
-    if (d.type === 'bambu') document.getElementById('rc-btn').style.background = 'var(--orange)';
-    document.getElementById('reconnect-card').classList.remove('hidden');
+    document.getElementById('wifi-ip-big').value = d.ip || '';
+    document.getElementById('wifi-key').value    = d.key || '';
+    document.getElementById('bambu-pin').value   = d.pin || '';
+    if (d.forceType) document.getElementById('force-type').value = d.forceType;
+    if (d.pin) document.getElementById('opts-panel').classList.add('open');
+    // Auto-connect immediately
+    connectWifi();
   } catch (_) {}
 }
 
-function quickReconnect() { connectWifi(); }
+loadAndAutoConnect();
 
-loadCredentials();
-
-// ── Type tab selection ─────────────────────────────────────────────────────────
-const HINTS = {
-  octoprint: 'Works with any printer running <strong style="color:var(--text2)">OctoPrint</strong> on your local network.',
-  moonraker: 'Works with any printer running <strong style="color:var(--text2)">Klipper + Moonraker</strong>.',
-  bambu:     'Connect any <strong style="color:var(--text2)">Bambu Lab</strong> printer (X1, P1, A1 series) using LAN mode.',
-};
-
-function selectType(type) {
-  if (connected) { toast('Disconnect first', 'error'); return; }
-  printerType = type;
-  document.querySelectorAll('.type-tab').forEach(t => t.classList.toggle('active', t.dataset.type === type));
-  document.getElementById('apikey-row').classList.toggle('hidden', type !== 'octoprint');
-  document.getElementById('bambu-pin-row').classList.toggle('hidden', type !== 'bambu');
-  document.getElementById('conn-hint').innerHTML = HINTS[type];
-  document.getElementById('bambu-ftp-box').classList.add('hidden');
-  // Bambu uses orange accent on connect button
-  document.getElementById('connect-btn').style.background = type === 'bambu' ? 'var(--orange)' : '';
-}
-
-// ── Connect dispatcher ─────────────────────────────────────────────────────────
+// ── Connect dispatcher — auto-detects printer type ─────────────────────────────
 async function connectWifi() {
-  if (printerType === 'bambu') { await connectBambu(); return; }
+  if (connected) return;
+  const rawIp = getIP();
+  if (!rawIp) { toast('Enter the printer IP address', 'error'); document.getElementById('wifi-ip-big').focus(); return; }
 
-  let ip = document.getElementById('wifi-ip').value.trim();
-  if (!ip) { toast('Enter the printer IP address', 'error'); return; }
-  if (!ip.startsWith('http')) ip = 'http://' + ip;
-  baseUrl = ip.replace(/\/$/, '');
-  apiKey  = document.getElementById('wifi-key').value.trim();
+  const forced = document.getElementById('force-type').value;
+  const pin    = document.getElementById('bambu-pin').value.trim();
+  apiKey       = document.getElementById('wifi-key').value.trim();
 
   setBtn(true, 'Connecting…');
   document.getElementById('https-banner').classList.add('hidden');
-  log('Connecting to ' + baseUrl + ' via ' + printerType + '…', 'info');
+  document.getElementById('detected-type').style.display = 'none';
+  showDetecting(true);
+
+  const ip = rawIp.replace(/^https?:\/\//, '');
+  baseUrl = 'http://' + ip;
 
   try {
-    if (printerType === 'octoprint') {
-      const r = await apiFetch('/api/version');
-      if (!r.api) throw new Error('Not an OctoPrint server');
-      log('OctoPrint v' + r.server, 'info');
+    if (forced === 'bambu' || (!forced && pin)) {
+      await connectBambu(ip, pin || document.getElementById('bambu-pin').value.trim());
+    } else if (forced) {
+      await connectHttp(forced, ip);
     } else {
-      const r = await apiFetch('/printer/info');
-      if (!r.result) throw new Error('Not a Moonraker server');
-      log('Moonraker — printer ' + r.result.state, 'info');
+      await autoDetectHttp(ip);
     }
-    connected = true;
-    setConnected(true);
-    startPolling();
-    saveCredentials();
-    toast('Connected!', 'success');
   } catch (e) {
-    setBtn(false, '📶 Connect');
-    log('Failed: ' + e.message, 'err');
-    toast('Could not connect: ' + e.message, 'error');
+    setBtn(false, '⚡ Connect');
+    showDetecting(false);
+    log('Connection failed: ' + e.message, 'err');
+    toast('Could not connect — check IP' + (e.message ? ': ' + e.message : ''), 'error');
     if (location.protocol === 'https:') document.getElementById('https-banner').classList.remove('hidden');
   }
+}
+
+async function autoDetectHttp(ip) {
+  log('Auto-detecting printer at ' + ip + '…', 'info');
+  const hdrs = apiKey ? { 'X-Api-Key': apiKey } : {};
+
+  const tryOcto = fetchWithTimeout('http://' + ip + '/api/version', { headers: hdrs }, 4000)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('bad status')))
+    .then(d => { if (!d.api) throw new Error(); return { type: 'octoprint', data: d }; });
+
+  const tryMoon = fetchWithTimeout('http://' + ip + '/printer/info', {}, 4000)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('bad status')))
+    .then(d => { if (!d.result) throw new Error(); return { type: 'moonraker', data: d }; });
+
+  const { type, data } = await Promise.any([tryOcto, tryMoon])
+    .catch(() => { throw new Error('No OctoPrint or Moonraker found at that IP'); });
+
+  printerType = type;
+  if (type === 'octoprint') log('OctoPrint v' + data.server + ' detected', 'info');
+  else                       log('Moonraker detected — state: ' + data.result.state, 'info');
+
+  showDetectedBadge(type === 'octoprint' ? 'OctoPrint' : 'Moonraker', false);
+  connected = true;
+  setConnected(true);
+  startPolling();
+  saveCredentials();
+  toast('Connected via ' + (type === 'octoprint' ? 'OctoPrint' : 'Moonraker') + '!', 'success');
+}
+
+async function connectHttp(type, ip) {
+  printerType = type;
+  const hdrs = apiKey ? { 'X-Api-Key': apiKey } : {};
+  log('Connecting to ' + type + ' at ' + ip + '…', 'info');
+  if (type === 'octoprint') {
+    const r = await fetchWithTimeout(baseUrl + '/api/version', { headers: hdrs }, 4000).then(r => r.json());
+    if (!r.api) throw new Error('Not an OctoPrint server');
+    log('OctoPrint v' + r.server, 'info');
+  } else {
+    const r = await fetchWithTimeout(baseUrl + '/printer/info', {}, 4000).then(r => r.json());
+    if (!r.result) throw new Error('Not a Moonraker server');
+    log('Moonraker — ' + r.result.state, 'info');
+  }
+  showDetectedBadge(type === 'octoprint' ? 'OctoPrint' : 'Moonraker', false);
+  connected = true; setConnected(true); startPolling(); saveCredentials();
+  toast('Connected!', 'success');
 }
 
 function disconnectWifi() {
@@ -445,20 +496,37 @@ function disconnectWifi() {
   stopPolling();
   connected = false; printing = false; paused = false; currentItem = null;
   setConnected(false); resetProgress();
+  document.getElementById('detected-type').style.display = 'none';
   log('Disconnected', 'info'); toast('Disconnected', 'info');
 }
 
+function fetchWithTimeout(url, opts, ms) {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal });
+}
+
+function showDetecting(on) {
+  document.getElementById('detecting-tag').style.display = on ? 'inline' : 'none';
+}
+
+function showDetectedBadge(label, isBambu) {
+  showDetecting(false);
+  const el = document.getElementById('detected-type');
+  el.textContent = '✓ ' + label;
+  el.className = isBambu ? 'bambu' : '';
+  el.style.display = 'block';
+}
+
+function selectType(type) { printerType = type; }
+
 // ── Bambu Lab: MQTT WebSocket ──────────────────────────────────────────────────
-async function connectBambu() {
-  const ip  = document.getElementById('wifi-ip').value.trim();
-  const pin = document.getElementById('bambu-pin').value.trim();
-  if (!ip)  { toast('Enter the printer IP address', 'error'); return; }
-  if (!pin) { toast('Enter the access code from the printer screen', 'error'); return; }
+async function connectBambu(ip, pin) {
+  if (!ip)  { throw new Error('Enter the printer IP address'); }
+  if (!pin) { toast('Enter the Bambu Access Code in Options ↓', 'error'); document.getElementById('opts-panel').classList.add('open'); showDetecting(false); setBtn(false,'⚡ Connect'); return; }
 
   bambuPin = pin;
   bambuSerial = '';
-  setBtn(true, 'Connecting…');
-  document.getElementById('https-banner').classList.add('hidden');
   log('Connecting to Bambu Lab printer at ' + ip + '…', 'info');
 
   // Bambu MQTT: plain WebSocket on port 2883, TLS on 8884
@@ -498,10 +566,11 @@ async function connectBambu() {
       connected = true;
       setConnected(true);
       // Show FTP box
-      const ip = document.getElementById('wifi-ip').value.trim();
-      document.getElementById('bambu-ftp-host').textContent = ip;
+      const ftpIp = getIP().replace(/^https?:\/\//, '');
+      document.getElementById('bambu-ftp-host').textContent = ftpIp;
       document.getElementById('bambu-ftp-pass').textContent = bambuPin;
       document.getElementById('bambu-ftp-box').classList.remove('hidden');
+      showDetectedBadge('Bambu Lab', true);
       saveCredentials();
       toast('Bambu printer connected!', 'success');
     }
@@ -532,6 +601,7 @@ function disconnectBambu() {
   connected = false; printing = false; paused = false; currentItem = null;
   document.getElementById('bambu-ftp-box').classList.add('hidden');
   document.getElementById('bambu-serial-detected').classList.add('hidden');
+  document.getElementById('detected-type').style.display = 'none';
   setConnected(false); resetProgress();
   log('Disconnected', 'info'); toast('Disconnected', 'info');
 }
@@ -810,7 +880,7 @@ async function startPrint(item) {
 async function startBambuPrint(item) {
   setProgress(0, item.name, 'Sending print command…');
   log('Starting Bambu print: ' + item.name, 'info');
-  const ip = document.getElementById('wifi-ip').value.trim();
+  const ip = getIP().replace(/^https?:\/\//, '');
   // Tell the printer to print the file from its local FTP storage
   mqttPublish({
     print: {
@@ -922,8 +992,7 @@ async function cancelPrint() {
 function setConnected(on) {
   document.getElementById('connect-btn').classList.toggle('hidden', on);
   document.getElementById('disconnect-btn').classList.toggle('hidden', !on);
-  ['wifi-ip','wifi-key','bambu-pin'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = on; });
-  document.querySelectorAll('.type-tab').forEach(t => t.disabled = on);
+  ['wifi-ip-big','wifi-key','bambu-pin','force-type'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = on; });
   document.getElementById('start-btn').disabled = !on || printing;
   setPill(on ? 'connected' : '');
 }
@@ -986,7 +1055,7 @@ document.getElementById('console-input').addEventListener('keydown', e => { if (
 document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='o') { e.preventDefault(); addFiles(); } });
 
 // Enter on any connection field triggers connect
-['wifi-ip','wifi-key','bambu-pin'].forEach(id => {
+['wifi-ip-big','wifi-key','bambu-pin'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter' && !connected) connectWifi(); });
 });
