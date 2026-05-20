@@ -14,7 +14,7 @@
       --surface: #111;
       --surface2: #1a1a1a;
       --border: #252525;
-      --accent: #ff6b35;
+      --accent: #f72626;
       --accent-dim: rgba(255,107,53,0.12);
       --accent-glow: rgba(255,107,53,0.4);
       --text: #e8e8e8;
@@ -573,7 +573,7 @@
     Free Desktop App · v1.0.0
   </div>
   <h1>Your 3D printer,<br /><span>on autopilot.</span></h1>
-  <p>Queue up G-code files, connect any printer over USB, and let Printara automatically eject finished parts so your next job starts without you.</p>
+  <p>Queue up G-code files, connect any WiFi printer, and let Printara automatically start the next job — runs locally so your printer connects instantly, no permissions needed.</p>
 </section>
 
 <!-- ── App preview ────────────────────────────────────────────────────────────── -->
@@ -678,38 +678,60 @@
 </div>
 
 <!-- ── Download ───────────────────────────────────────────────────────────────── -->
-<div id="download" class="download-grid">
-  <div class="dl-card primary">
-    <span class="platform-icon">🪟</span>
-    <h3>Windows</h3>
-    <div class="dl-meta">.exe installer · Windows 10 / 11</div>
-    <a class="dl-btn" href="https://github.com/shanevandekrol-dotcom/printara/releases/latest/download/PrintaraSetup.exe">
-      ↓ Download for Windows
-    </a>
+<div id="download" style="max-width:680px;margin:0 auto 24px;padding:0 24px">
+
+  <!-- Why local -->
+  <div style="background:#111;border:1px solid #252525;border-radius:14px;padding:20px 24px;margin-bottom:20px;font-size:13px;color:#888;line-height:1.7">
+    <strong style="color:#e8e8e8;font-size:14px">Why run locally?</strong><br/>
+    Browsers block websites from reaching devices on your home network — that's why connecting from printara.netlify.app doesn't work without changing settings.
+    Running the queue on <em>your own computer</em> bypasses this completely. It opens in your browser just like a website, but talks directly to your printer.
   </div>
 
-  <div class="dl-card">
-    <span class="platform-icon">🍎</span>
-    <h3>macOS</h3>
-    <div class="dl-meta">.zip · macOS 12+</div>
-    <a class="dl-btn secondary" href="https://github.com/shanevandekrol-dotcom/printara/releases/latest/download/Printara-darwin-x64.zip">
-      ↓ Download for Mac
-    </a>
+  <!-- Windows card -->
+  <div class="dl-card primary" style="margin-bottom:16px;display:block;padding:24px 28px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <span class="platform-icon" style="font-size:28px">🪟</span>
+      <div>
+        <h3 style="margin:0 0 2px">Windows</h3>
+        <div class="dl-meta">Requires Node.js · Windows 10 / 11</div>
+      </div>
+    </div>
+    <ol style="font-size:13px;color:#888;line-height:2;padding-left:18px;margin-bottom:16px">
+      <li>Install <a href="https://nodejs.org" target="_blank" style="color:#ff6b35">Node.js</a> if you don't have it (free, one-time)</li>
+      <li>Download all three files below into the same folder</li>
+      <li>Double-click <strong style="color:#e8e8e8">Printara Queue.bat</strong> — browser opens automatically</li>
+    </ol>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a class="dl-btn" href="https://raw.githubusercontent.com/shanevandekrol-dotcom/printara/main/Printara%20Queue.bat" download>↓ Printara Queue.bat</a>
+      <a class="dl-btn secondary" href="https://raw.githubusercontent.com/shanevandekrol-dotcom/printara/main/serve.js" download>↓ serve.js</a>
+      <a class="dl-btn secondary" href="https://raw.githubusercontent.com/shanevandekrol-dotcom/printara/main/queue.html" download>↓ queue.html</a>
+    </div>
   </div>
 
-  <div class="dl-card">
-    <span class="platform-icon">🐧</span>
-    <h3>Linux</h3>
-    <div class="dl-meta">.deb / .rpm · Ubuntu, Fedora, Arch</div>
-    <a class="dl-btn secondary" href="https://github.com/shanevandekrol-dotcom/printara/releases/latest">
-      ↓ Download for Linux
-    </a>
+  <!-- Mac / Linux card -->
+  <div class="dl-card" style="display:block;padding:24px 28px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <span class="platform-icon" style="font-size:28px">🍎🐧</span>
+      <div>
+        <h3 style="margin:0 0 2px">Mac &amp; Linux</h3>
+        <div class="dl-meta">Requires Node.js</div>
+      </div>
+    </div>
+    <ol style="font-size:13px;color:#888;line-height:2;padding-left:18px;margin-bottom:16px">
+      <li>Install <a href="https://nodejs.org" target="_blank" style="color:#ff6b35">Node.js</a> if you don't have it</li>
+      <li>Download <strong style="color:#e8e8e8">serve.js</strong> and <strong style="color:#e8e8e8">queue.html</strong> into the same folder</li>
+      <li>Open Terminal in that folder and run: <code style="background:#1a1a1a;padding:2px 8px;border-radius:4px;color:#e8e8e8">node serve.js</code></li>
+      <li>Browser opens at <code style="background:#1a1a1a;padding:2px 8px;border-radius:4px;color:#e8e8e8">http://localhost:3000</code></li>
+    </ol>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a class="dl-btn secondary" href="https://raw.githubusercontent.com/shanevandekrol-dotcom/printara/main/serve.js" download>↓ serve.js</a>
+      <a class="dl-btn secondary" href="https://raw.githubusercontent.com/shanevandekrol-dotcom/printara/main/queue.html" download>↓ queue.html</a>
+    </div>
   </div>
 </div>
 
 <p class="version-note">
-  v1.0.0 · Free &amp; open source ·
-  <a href="https://github.com/shanevandekrol-dotcom/printara/releases">All releases</a> ·
+  Free &amp; open source ·
   <a href="https://github.com/shanevandekrol-dotcom/printara">Source on GitHub</a>
 </p>
 
