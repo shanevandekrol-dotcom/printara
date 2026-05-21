@@ -12,6 +12,7 @@ function getQueuePath() {
 
 function createWindow() {
   const win = new BrowserWindow({
+    // Web Serial + local network fetch need these session handlers
     width: 1300,
     height: 860,
     minWidth: 960,
@@ -25,10 +26,21 @@ function createWindow() {
     },
   });
 
+  // Allow Web Serial API without permission prompts
+  win.webContents.session.on('select-serial-port', (event, portList, _wc, callback) => {
+    event.preventDefault();
+    callback(portList.length > 0 ? portList[0].portId : '');
+  });
+  win.webContents.session.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'serial' ? true : null;
+  });
+  win.webContents.session.setDevicePermissionHandler(details => {
+    return details.deviceType === 'serial';
+  });
+
   win.loadFile(getQueuePath());
   win.setMenuBarVisibility(false);
 
-  // Open external links in real browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };

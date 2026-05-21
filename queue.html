@@ -3,1072 +3,843 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Printara — Print Queue</title>
+  <title>Printara — Dashboard</title>
   <link rel="icon" href="logo.png" />
-  <meta name="theme-color" content="#0a0a0a" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet" />
-  <!-- MQTT.js for Bambu Lab WebSocket connection -->
   <script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --surface3: #242424;
-      --border: #2a2a2a; --accent: #0099ff; --accent-dim: rgba(0,153,255,0.12);
-      --orange: #ff6b35; --orange-dim: rgba(255,107,53,0.1);
-      --green: #22c55e; --red: #ef4444; --yellow: #eab308;
-      --text: #e8e8e8; --text2: #888; --text3: #444; --radius: 10px;
+      --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --surface3:#242424;
+      --border:#2a2a2a; --accent:#0099ff; --accent-dim:rgba(0,153,255,.12);
+      --orange:#ff6b35; --orange-dim:rgba(255,107,53,.1);
+      --green:#22c55e; --red:#ef4444; --yellow:#eab308;
+      --text:#e8e8e8; --text2:#888; --text3:#444; --radius:12px;
     }
-    html,body { height:100%; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:13px; overflow:hidden; }
-    #app { display:grid; grid-template-columns:280px 1fr 280px; grid-template-rows:52px auto 1fr 140px; height:100vh; }
+    html,body { height:100%; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; font-size:13px; }
 
-    /* top bar */
-    #topbar { grid-column:1/-1; display:flex; align-items:center; gap:12px; padding:0 18px; background:var(--surface); border-bottom:1px solid var(--border); }
-    #topbar a { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-weight:700; font-size:15px; }
+    /* topbar */
+    #topbar { display:flex; align-items:center; gap:12px; padding:0 20px; height:54px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+    #topbar a { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); font-weight:800; font-size:15px; }
     #topbar a svg { color:var(--accent); }
-    #topbar .sep { color:var(--text3); margin:0 4px; }
-    #topbar .page-title { color:var(--text2); font-weight:600; font-size:14px; }
-    #topbar .spacer { flex:1; }
+    .spacer { flex:1; }
 
-    .status-pill { display:flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; background:var(--surface2); border:1px solid var(--border); }
-    .status-pill .dot { width:7px; height:7px; border-radius:50%; background:var(--text3); }
-    .status-pill.connected .dot { background:var(--green); box-shadow:0 0 6px var(--green); }
-    .status-pill.printing  .dot { background:var(--accent); box-shadow:0 0 6px var(--accent); animation:blink 1.2s infinite; }
+    /* dashboard grid */
+    #dashboard { padding:24px; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; align-content:start; }
+
+    /* printer card */
+    .printer-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; transition:border-color .15s; }
+    .printer-card:hover { border-color:#3a3a3a; }
+    .printer-card.printing { border-color:var(--accent); }
+    .printer-card.error    { border-color:var(--red); }
+
+    /* camera */
+    .card-cam { height:180px; background:#080808; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+    .card-cam img { width:100%; height:100%; object-fit:cover; display:block; }
+    .card-cam .no-cam { color:var(--text3); font-size:11px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .live-badge { position:absolute; top:8px; right:8px; background:rgba(0,0,0,.7); color:var(--green); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; }
+
+    /* card body */
+    .card-body { padding:14px; display:flex; flex-direction:column; gap:10px; flex:1; }
+    .card-hdr { display:flex; align-items:center; gap:8px; }
+    .pname { font-size:14px; font-weight:800; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tbadge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--surface2); color:var(--text2); border:1px solid var(--border); white-space:nowrap; }
+    .tbadge.octoprint { background:rgba(0,153,255,.1); color:var(--accent); border-color:rgba(0,153,255,.3); }
+    .tbadge.moonraker { background:rgba(34,197,94,.1); color:var(--green); border-color:rgba(34,197,94,.3); }
+    .tbadge.bambu     { background:var(--orange-dim); color:var(--orange); border-color:rgba(255,107,53,.3); }
+    .tbadge.usb       { background:rgba(234,179,8,.1); color:var(--yellow); border-color:rgba(234,179,8,.3); }
+    .sdot { width:8px; height:8px; border-radius:50%; background:var(--text3); flex-shrink:0; }
+    .sdot.on  { background:var(--green); box-shadow:0 0 6px var(--green); }
+    .sdot.printing { background:var(--accent); box-shadow:0 0 6px var(--accent); animation:blink 1.2s infinite; }
     @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
 
-    /* banners */
-    .banner { grid-column:1/-1; display:flex; align-items:center; gap:10px; padding:8px 18px; font-size:12px; }
-    .banner.yellow { background:rgba(234,179,8,.08); border-bottom:1px solid rgba(234,179,8,.2); color:var(--yellow); }
-    .banner.orange { background:var(--orange-dim); border-bottom:1px solid rgba(255,107,53,.2); color:var(--orange); }
-    .banner button { margin-left:auto; border-radius:6px; padding:3px 10px; font-size:11px; font-weight:700; cursor:pointer; border:1px solid currentColor; background:transparent; color:inherit; }
+    .temps { display:flex; gap:8px; }
+    .tchip { flex:1; background:var(--surface2); border-radius:8px; padding:8px; text-align:center; }
+    .tchip .lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
+    .tchip .val { font-size:16px; font-weight:700; margin-top:2px; }
+    .tchip .val.hot  { color:var(--orange); }
+    .tchip .val.warm { color:var(--yellow); }
+    .tchip .tgt { font-size:10px; color:var(--text3); }
 
-    /* panels */
-    #left   { grid-row:3; background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
-    #main   { grid-row:3; display:flex; flex-direction:column; overflow:hidden; }
-    #right  { grid-row:3; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-    #bottom { grid-column:1/-1; background:var(--surface); border-top:1px solid var(--border); padding:14px 20px; display:flex; flex-direction:column; gap:10px; }
-    .panel { padding:16px; border-bottom:1px solid var(--border); }
-    .panel-title { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text3); margin-bottom:12px; }
+    .prog-row { display:flex; justify-content:space-between; font-size:11px; color:var(--text2); margin-bottom:5px; }
+    .prog-row span:last-child { font-weight:700; color:var(--accent); }
+    .ptrack { height:5px; background:var(--surface3); border-radius:3px; overflow:hidden; }
+    .pfill  { height:100%; background:var(--accent); border-radius:3px; width:0%; transition:width .4s; }
 
-    label { display:block; font-size:11px; color:var(--text2); margin-bottom:4px; }
-    .field { margin-bottom:10px; }
-    select, input[type="text"], input[type="password"] {
-      width:100%; padding:7px 10px; font-size:12px; font-family:inherit;
-      background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
-      color:var(--text); outline:none;
-    }
-    select:focus, input:focus { border-color:var(--accent); }
+    .card-acts { display:flex; gap:6px; margin-top:auto; flex-wrap:wrap; }
 
-    button { cursor:pointer; border:none; border-radius:var(--radius); font-family:inherit; font-size:12px; font-weight:700; transition:all .15s; }
-    .btn-primary   { background:var(--accent);   color:#fff; padding:8px 14px; }
-    .btn-primary:hover   { background:#0088ee; }
+    /* add card */
+    .add-card { border:2px dashed var(--border); border-radius:var(--radius); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:240px; cursor:pointer; color:var(--text3); font-size:13px; font-weight:600; transition:all .15s; }
+    .add-card:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+
+    /* buttons */
+    button { cursor:pointer; border:none; border-radius:8px; font-family:inherit; font-size:12px; font-weight:700; transition:all .15s; }
+    .btn-primary   { background:var(--accent); color:#fff; padding:8px 14px; }
+    .btn-primary:hover { background:#0088ee; }
     .btn-primary:disabled { opacity:.4; cursor:not-allowed; }
     .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); padding:7px 12px; }
     .btn-secondary:hover { background:var(--surface3); }
     .btn-secondary:disabled { opacity:.4; cursor:not-allowed; }
     .btn-danger    { background:rgba(239,68,68,.12); color:var(--red); border:1px solid rgba(239,68,68,.25); padding:7px 12px; }
     .btn-danger:hover { background:rgba(239,68,68,.22); }
-    .btn-icon { background:transparent; color:var(--text2); padding:4px 6px; border-radius:6px; font-size:14px; line-height:1; }
-    .btn-icon:hover { background:var(--surface3); color:var(--text); }
-    .btn-row { display:flex; gap:8px; }
-    .btn-row button { flex:1; }
+    .btn-sm { padding:5px 10px; font-size:11px; }
     .hidden { display:none !important; }
 
-    /* type tabs — 3 options */
-    .type-tabs { display:flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:14px; }
-    .type-tab { flex:1; padding:7px 4px; font-size:11px; font-weight:700; border:none; background:var(--surface2); color:var(--text2); cursor:pointer; white-space:nowrap; }
+    /* modal */
+    .modal-bg { position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:20px; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:28px; width:100%; max-width:420px; max-height:90vh; overflow-y:auto; position:relative; }
+    .modal h2 { font-size:18px; font-weight:800; margin-bottom:20px; }
+    .mclose { position:absolute; top:18px; right:18px; background:none; border:none; color:var(--text2); font-size:20px; cursor:pointer; }
+    .field { margin-bottom:12px; }
+    .field label { display:block; font-size:11px; color:var(--text2); margin-bottom:4px; font-weight:600; }
+    .field input, .field select { width:100%; padding:9px 11px; font-size:13px; font-family:inherit; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); outline:none; }
+    .field input:focus, .field select:focus { border-color:var(--accent); }
+    .type-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:16px; }
+    .type-tab  { flex:1; padding:8px 4px; font-size:11px; font-weight:700; border:none; background:var(--surface2); color:var(--text2); cursor:pointer; white-space:nowrap; }
     .type-tab.active { background:var(--accent); color:#fff; }
     .type-tab.bambu.active { background:var(--orange); }
+    .type-tab.usb.active   { background:var(--yellow); color:#000; }
 
-    /* Big IP input */
-    #ip-wrap { position:relative; margin-bottom:10px; }
-    #wifi-ip-big {
-      width:100%; padding:10px 12px; font-size:14px; font-weight:700;
-      font-family:'Fira Code',monospace; background:var(--surface2);
-      border:1px solid var(--border); border-radius:var(--radius);
-      color:var(--text); outline:none; letter-spacing:.5px;
-    }
-    #wifi-ip-big:focus { border-color:var(--accent); }
-    #wifi-ip-big.bambu-mode:focus { border-color:var(--orange); }
-    #detecting-tag {
-      position:absolute; right:10px; top:50%; transform:translateY(-50%);
-      font-size:10px; font-weight:700; color:var(--accent); display:none;
-    }
-
-    /* Options toggle */
-    #opts-toggle { font-size:11px; color:var(--text3); cursor:pointer; display:flex; align-items:center; gap:4px; margin-bottom:8px; user-select:none; }
-    #opts-toggle:hover { color:var(--text2); }
-    #opts-panel { display:none; }
-    #opts-panel.open { display:block; }
-
-    /* Auto-detected type badge */
-    #detected-type {
-      font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;
-      background:var(--accent-dim); color:var(--accent); border:1px solid rgba(0,153,255,.3);
-      display:none; margin-bottom:8px; text-align:center;
-    }
-    #detected-type.bambu { background:var(--orange-dim); color:var(--orange); border-color:rgba(255,107,53,.3); }
-
-    /* Bambu FTP info box */
-    #bambu-ftp-box {
-      background:var(--orange-dim); border:1px solid rgba(255,107,53,.25);
-      border-radius:var(--radius); padding:10px 12px; font-size:11px; line-height:1.6;
-      color:var(--text2); margin-top:10px;
-    }
-    #bambu-ftp-box strong { color:var(--orange); }
-    #bambu-ftp-box code { font-family:'Fira Code',monospace; color:var(--text); font-size:10px; background:rgba(0,0,0,.3); padding:1px 5px; border-radius:4px; }
-    #bambu-serial-detected { font-size:11px; color:var(--green); margin-top:6px; }
-
-    /* temperature */
-    .temp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .temp-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:10px; text-align:center; }
-    .temp-card .lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
-    .temp-card .val { font-size:20px; font-weight:700; }
-    .temp-card .val.hot  { color:var(--orange); }
-    .temp-card .val.warm { color:var(--yellow); }
-    .temp-card .tgt { font-size:10px; color:var(--text3); margin-top:2px; }
-
-    .jog-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-
-    /* queue */
-    #queue-bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); background:var(--surface); }
-    #queue-bar h2 { font-size:14px; font-weight:800; flex:1; }
-    #q-count { font-size:11px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:2px 8px; color:var(--text2); }
-
-    #drop-zone { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; }
-    #drop-zone.over { outline:2px dashed var(--accent); outline-offset:-4px; background:var(--accent-dim); }
-
-    #empty-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px; color:var(--text3); text-align:center; }
-    #empty-state svg { opacity:.25; }
-    #empty-state p { font-size:12px; }
-    #empty-state small { font-size:11px; opacity:.6; }
-
-    .q-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; display:flex; align-items:center; gap:12px; transition:border-color .15s; }
-    .q-item:hover { border-color:#3a3a3a; }
-    .q-item.active { border-color:var(--accent); background:var(--accent-dim); }
-    .q-item.done   { opacity:.5; border-color:var(--green); }
-    .q-item.cancelled { opacity:.4; }
-    .q-icon { width:34px; height:34px; border-radius:8px; background:var(--surface3); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
-    .q-item.active .q-icon { background:var(--accent-dim); }
-    .q-info { flex:1; overflow:hidden; }
-    .q-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .q-meta { font-size:11px; color:var(--text2); margin-top:2px; }
-    .q-badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.5px; flex-shrink:0; }
+    /* manage panel */
+    #manage-panel { position:fixed; top:0; right:0; bottom:0; width:420px; background:var(--surface); border-left:1px solid var(--border); z-index:200; display:flex; flex-direction:column; transform:translateX(0); transition:transform .25s ease; }
+    #manage-panel.closed { transform:translateX(100%); }
+    .ptopbar { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .ptopbar h2 { font-size:15px; font-weight:800; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pcam { height:190px; background:#080808; overflow:hidden; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center; }
+    .pcam img { width:100%; height:100%; object-fit:cover; }
+    .pcam .no-cam { color:var(--text3); font-size:11px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .pbody { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+    .stitle { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+    .qi { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 12px; display:flex; align-items:center; gap:8px; }
+    .qi.active { border-color:var(--accent); background:var(--accent-dim); }
+    .qi .qname { flex:1; font-size:12px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .qbadge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; flex-shrink:0; }
     .badge-queued    { background:var(--surface3); color:var(--text2); }
-    .badge-uploading { background:rgba(234,179,8,.12); color:var(--yellow); border:1px solid rgba(234,179,8,.3); }
+    .badge-uploading { background:rgba(234,179,8,.12); color:var(--yellow); }
     .badge-printing  { background:var(--accent-dim); color:var(--accent); border:1px solid rgba(0,153,255,.3); }
-    .badge-done      { background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.3); }
-    .badge-cancelled { background:rgba(239,68,68,.1); color:var(--red); }
-    .badge-error     { background:rgba(239,68,68,.1); color:var(--red); }
-    .q-actions { display:flex; gap:4px; flex-shrink:0; }
-
-    /* console */
-    #console-hdr { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); }
-    #console-hdr h3 { font-size:12px; font-weight:700; flex:1; }
-    #console-out { flex:1; overflow-y:auto; padding:10px; font-family:'Fira Code',monospace; font-size:11px; line-height:1.7; background:#080808; }
+    .badge-done      { background:rgba(34,197,94,.1); color:var(--green); border:1px solid rgba(34,197,94,.3); }
+    .badge-error,.badge-cancelled { background:rgba(239,68,68,.1); color:var(--red); }
+    #pcon { min-height:100px; max-height:180px; overflow-y:auto; background:#080808; border-radius:8px; padding:8px; font-family:'Fira Code',monospace; font-size:11px; line-height:1.7; }
     .cl.sent { color:#4ade80; } .cl.recv { color:#94a3b8; } .cl.info { color:var(--accent); } .cl.err { color:var(--red); }
-    #console-row { display:flex; border-top:1px solid var(--border); }
-    #console-input { flex:1; background:var(--surface2); border:none; border-radius:0; padding:8px 10px; font-family:'Fira Code',monospace; font-size:11px; color:var(--text); outline:none; }
-    #console-send { background:var(--surface3); color:var(--text2); border:none; border-left:1px solid var(--border); padding:8px 14px; font-size:11px; font-weight:700; cursor:pointer; }
-    #console-send:hover { background:var(--accent); color:#fff; }
-
-    /* progress */
-    #prog-row { display:flex; align-items:center; gap:14px; }
-    #prog-file { flex:1; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #prog-file.idle { color:var(--text3); font-weight:400; }
-    #prog-pct { font-size:14px; font-weight:800; color:var(--accent); min-width:42px; text-align:right; }
-    #prog-controls { display:flex; gap:8px; }
-    #prog-track { width:100%; height:6px; background:var(--surface3); border-radius:3px; overflow:hidden; }
-    #prog-fill { height:100%; background:var(--accent); border-radius:3px; width:0%; transition:width .4s ease; box-shadow:0 0 8px rgba(0,153,255,.4); }
-    #prog-gcode { font-size:11px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cin-row { display:flex; gap:6px; margin-top:6px; }
+    .cin-row input { flex:1; padding:7px 10px; font-family:'Fira Code',monospace; font-size:11px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); outline:none; }
+    .cin-row input:focus { border-color:var(--accent); }
+    .jog { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 
     /* toasts */
-    #toasts { position:fixed; bottom:160px; right:16px; display:flex; flex-direction:column; gap:8px; z-index:1000; pointer-events:none; }
-    .toast { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:10px 14px; font-size:12px; max-width:280px; animation:slideIn .2s ease; }
+    #toasts { position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:999; pointer-events:none; }
+    .toast { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; max-width:280px; animation:slideIn .2s ease; }
     .toast.success { border-color:rgba(34,197,94,.4); color:var(--green); }
-    .toast.error   { border-color:rgba(239,68,68,.4); color:var(--red); }
-    .toast.info    { border-color:rgba(0,153,255,.4); color:var(--accent); }
+    .toast.error   { border-color:rgba(239,68,68,.4);  color:var(--red); }
+    .toast.info    { border-color:rgba(0,153,255,.4);  color:var(--accent); }
     @keyframes slideIn { from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1} }
-    ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+    ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
   </style>
 </head>
 <body>
-<div id="app">
 
-  <!-- top bar -->
-  <header id="topbar">
-    <a href="index.html">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
-        <line x1="12" y1="22" x2="12" y2="15.5"/>
-        <polyline points="22 8.5 12 15.5 2 8.5"/>
-      </svg>
-      Printara
-    </a>
-    <span class="sep">/</span>
-    <span class="page-title">Print Queue</span>
-    <div class="spacer"></div>
-    <div id="status-pill" class="status-pill">
-      <div class="dot"></div>
-      <span id="status-txt">Disconnected</span>
-    </div>
-  </header>
+<header id="topbar">
+  <a href="index.html">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+    Printara
+  </a>
+  <span style="color:var(--text3);margin:0 2px">/</span>
+  <span style="color:var(--text2);font-weight:600;font-size:14px">Dashboard</span>
+  <div class="spacer"></div>
+  <button class="btn-primary" onclick="openAdd()">+ Add Printer</button>
+</header>
 
-  <!-- HTTPS mixed-content warning (shown only when a connection fails on HTTPS) -->
-  <div id="https-banner" class="banner yellow hidden">
-    ⚠ Mixed content blocked — your printer is HTTP, this page is HTTPS. In Chrome: click 🔒 in the address bar → Site settings → Insecure content → Allow.
-    <button onclick="this.parentElement.classList.add('hidden')">✕</button>
+<div id="dashboard">
+  <div class="add-card" onclick="openAdd()">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Printer
   </div>
-
-  <!-- left sidebar -->
-  <aside id="left">
-    <div class="panel">
-      <div class="panel-title">Connect Printer</div>
-
-      <!-- Big IP input -->
-      <div id="ip-wrap">
-        <input type="text" id="wifi-ip-big" placeholder="192.168.1.100" spellcheck="false" autocomplete="off" autofocus />
-        <span id="detecting-tag">detecting…</span>
-      </div>
-
-      <!-- Auto-detected type badge -->
-      <div id="detected-type"></div>
-
-      <!-- Connect / Disconnect -->
-      <button class="btn-primary" id="connect-btn" onclick="connectWifi()" style="width:100%;padding:10px;font-size:13px;margin-bottom:8px">⚡ Connect</button>
-      <button class="btn-secondary hidden" id="disconnect-btn" onclick="disconnectWifi()" style="width:100%;margin-bottom:8px">Disconnect</button>
-
-      <!-- Options toggle -->
-      <div id="opts-toggle" onclick="toggleOpts()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-        Options
-        <span id="opts-arrow" style="margin-left:auto">›</span>
-      </div>
-      <div id="opts-panel">
-        <div class="field">
-          <label>OctoPrint API Key <span style="color:var(--text3);font-size:10px">(if required)</span></label>
-          <input type="password" id="wifi-key" placeholder="Leave blank to auto-detect…" spellcheck="false" />
-        </div>
-        <div class="field">
-          <label>Bambu Access Code <span style="color:var(--text3);font-size:10px">(Settings → LAN on screen)</span></label>
-          <input type="password" id="bambu-pin" placeholder="8-character code" spellcheck="false" maxlength="8" />
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label>Force type</label>
-          <select id="force-type">
-            <option value="">Auto-detect</option>
-            <option value="octoprint">OctoPrint</option>
-            <option value="moonraker">Moonraker</option>
-            <option value="bambu">Bambu Lab</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- hidden compat alias -->
-      <input type="hidden" id="wifi-ip" />
-
-      <!-- Bambu FTP info (shown after connect) -->
-      <div id="bambu-ftp-box" class="hidden" style="margin-top:10px">
-        <strong>Upload files via FTP</strong><br/>
-        Host: <code id="bambu-ftp-host">—</code><br/>
-        User: <code>bblp</code> &nbsp; Pass: <code id="bambu-ftp-pass">—</code><br/>
-        Port: <code>990</code> (FTPS) or <code>21</code><br/>
-        Path: <code>/model/</code>
-        <div id="bambu-serial-detected" class="hidden"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Temperature</div>
-      <div class="temp-grid">
-        <div class="temp-card"><div class="lbl">Hotend</div><div class="val" id="t-hotend">—</div><div class="tgt" id="t-hotend-tgt"></div></div>
-        <div class="temp-card"><div class="lbl">Bed</div><div class="val" id="t-bed">—</div><div class="tgt" id="t-bed-tgt"></div></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Quick Commands</div>
-      <div class="jog-grid">
-        <button class="btn-secondary" onclick="cmd('G28')">Home All</button>
-        <button class="btn-secondary" onclick="cmd('G28 X Y')">Home XY</button>
-        <button class="btn-secondary" onclick="cmd('G28 Z')">Home Z</button>
-        <button class="btn-secondary" onclick="cmd('M84')">Motors Off</button>
-        <button class="btn-secondary" onclick="cmd('M104 S0')">Extruder Off</button>
-        <button class="btn-secondary" onclick="cmd('M140 S0')">Bed Off</button>
-        <button class="btn-secondary" onclick="cmd('M105')">Get Temp</button>
-        <button class="btn-secondary" onclick="cmd('M503')">Settings</button>
-      </div>
-    </div>
-  </aside>
-
-  <!-- main queue -->
-  <main id="main">
-    <div id="queue-bar">
-      <h2>Print Queue</h2>
-      <span id="q-count">0 items</span>
-      <button class="btn-secondary" onclick="addFiles()">+ Add Files</button>
-      <button class="btn-secondary" onclick="clearDone()">Clear Done</button>
-      <button class="btn-primary" id="start-btn" disabled onclick="startQueue()">▶ Start Queue</button>
-    </div>
-    <div id="drop-zone">
-      <div id="empty-state">
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
-        </svg>
-        <p>Queue is empty</p>
-        <small>Click "Add Files" or drag &amp; drop .gcode / .3mf files here</small>
-      </div>
-    </div>
-  </main>
-
-  <!-- console -->
-  <aside id="right">
-    <div id="console-hdr">
-      <h3>Console</h3>
-      <button class="btn-icon" onclick="clearConsole()" title="Clear">✕</button>
-    </div>
-    <div id="console-out"></div>
-    <div id="console-row">
-      <input id="console-input" type="text" placeholder="G-code command…" autocomplete="off" spellcheck="false" />
-      <button id="console-send" onclick="sendConsole()">Send</button>
-    </div>
-  </aside>
-
-  <!-- progress bar -->
-  <footer id="bottom">
-    <div id="prog-row">
-      <div id="prog-file" class="idle">No active print</div>
-      <div id="prog-controls">
-        <button class="btn-secondary" id="pause-btn"  disabled onclick="pausePrint()">⏸ Pause</button>
-        <button class="btn-secondary hidden" id="resume-btn" onclick="resumePrint()">▶ Resume</button>
-        <button class="btn-danger"    id="cancel-btn" disabled onclick="cancelPrint()">✕ Cancel</button>
-      </div>
-      <div id="prog-pct">—</div>
-    </div>
-    <div id="prog-track"><div id="prog-fill"></div></div>
-    <div id="prog-gcode">Connect a printer to begin</div>
-  </footer>
 </div>
-<div id="toasts"></div>
 
+<!-- Add Printer Modal -->
+<div id="add-modal" class="modal-bg hidden" onclick="if(event.target===this)closeAdd()">
+  <div class="modal">
+    <button class="mclose" onclick="closeAdd()">×</button>
+    <h2>Add Printer</h2>
+    <div class="field">
+      <label>Printer Name</label>
+      <input type="text" id="add-name" placeholder="e.g. Ender 3, Bambu X1" autocomplete="off" />
+    </div>
+    <div class="type-tabs">
+      <button class="type-tab usb active" data-at="usb"       onclick="setAT('usb')">USB</button>
+      <button class="type-tab"            data-at="octoprint" onclick="setAT('octoprint')">OctoPrint</button>
+      <button class="type-tab"            data-at="moonraker" onclick="setAT('moonraker')">Moonraker</button>
+      <button class="type-tab bambu"      data-at="bambu"     onclick="setAT('bambu')">Bambu</button>
+    </div>
+    <div id="add-usb">
+      <div class="field">
+        <label>Baud Rate</label>
+        <select id="add-baud">
+          <option value="115200" selected>115200 — most printers</option>
+          <option value="250000">250000 — some Marlin</option>
+          <option value="57600">57600</option>
+          <option value="9600">9600</option>
+        </select>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin-bottom:12px">A port picker will open in your browser. Only works in Chrome or Edge.</p>
+    </div>
+    <div id="add-wifi" class="hidden">
+      <div class="field">
+        <label>Printer IP Address</label>
+        <input type="text" id="add-ip" placeholder="192.168.1.100" spellcheck="false" autocomplete="off" />
+      </div>
+      <div class="field" id="add-key-wrap">
+        <label>API Key <span style="color:var(--text3);font-size:10px">(OctoPrint → Settings → API)</span></label>
+        <input type="password" id="add-key" placeholder="Paste API key…" spellcheck="false" />
+      </div>
+      <div class="field hidden" id="add-pin-wrap">
+        <label>Access Code <span style="color:var(--text3);font-size:10px">(printer screen → Settings → LAN)</span></label>
+        <input type="password" id="add-pin" placeholder="8-character code" spellcheck="false" maxlength="8" />
+      </div>
+    </div>
+    <button class="btn-primary" id="add-btn" onclick="doAdd()" style="width:100%;padding:11px;font-size:14px;margin-top:4px">⚡ Connect</button>
+  </div>
+</div>
+
+<!-- Manage Panel -->
+<div id="manage-panel" class="closed">
+  <div class="ptopbar">
+    <h2 id="pt">Printer</h2>
+    <button class="btn-danger btn-sm" onclick="disconnectManaged()">Disconnect</button>
+    <button class="btn-secondary btn-sm" onclick="closeManage()">✕</button>
+  </div>
+  <div class="pcam" id="pcam">
+    <div class="no-cam" id="pnc">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M9 6l1.5-2h3L15 6"/></svg>
+      No camera
+    </div>
+    <img id="pcam-img" class="hidden" src="" alt="" />
+    <div class="live-badge hidden" id="plive">● LIVE</div>
+  </div>
+  <div class="pbody">
+    <!-- Progress -->
+    <div>
+      <div class="stitle">Now Printing</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="ppfile">Nothing printing</div>
+      <div class="ptrack"><div class="pfill" id="ppfill"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:3px">
+        <span id="ppsub"></span><span id="pppct" style="color:var(--accent);font-weight:700"></span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-secondary btn-sm" id="p-pause"  disabled onclick="pPause()">⏸ Pause</button>
+        <button class="btn-secondary btn-sm hidden" id="p-resume" onclick="pResume()">▶ Resume</button>
+        <button class="btn-danger btn-sm"    id="p-cancel" disabled onclick="pCancel()">✕ Cancel</button>
+      </div>
+    </div>
+    <!-- Queue -->
+    <div>
+      <div style="display:flex;align-items:center;margin-bottom:8px">
+        <div class="stitle" style="margin:0;flex:1">Queue</div>
+        <button class="btn-secondary btn-sm" onclick="pAddFiles()">+ Add</button>
+        <button class="btn-primary btn-sm" id="p-start" disabled onclick="pStart()" style="margin-left:6px">▶ Start</button>
+      </div>
+      <div id="pqueue"><div style="font-size:11px;color:var(--text3);text-align:center;padding:14px">No files queued</div></div>
+    </div>
+    <!-- Temps -->
+    <div>
+      <div class="stitle">Temperature</div>
+      <div class="temps">
+        <div class="tchip"><div class="lbl">Hotend</div><div class="val" id="pt-hotend">—</div><div class="tgt" id="pt-hotend-tgt"></div></div>
+        <div class="tchip"><div class="lbl">Bed</div><div class="val" id="pt-bed">—</div><div class="tgt" id="pt-bed-tgt"></div></div>
+      </div>
+    </div>
+    <!-- Commands -->
+    <div>
+      <div class="stitle">Quick Commands</div>
+      <div class="jog">
+        <button class="btn-secondary btn-sm" onclick="pCmd('G28')">Home All</button>
+        <button class="btn-secondary btn-sm" onclick="pCmd('G28 X Y')">Home XY</button>
+        <button class="btn-secondary btn-sm" onclick="pCmd('M104 S0')">Extruder Off</button>
+        <button class="btn-secondary btn-sm" onclick="pCmd('M140 S0')">Bed Off</button>
+        <button class="btn-secondary btn-sm" onclick="pCmd('M84')">Motors Off</button>
+        <button class="btn-secondary btn-sm" onclick="pCmd('M105')">Get Temp</button>
+      </div>
+    </div>
+    <!-- Console -->
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;margin-bottom:6px">
+        <div class="stitle" style="margin:0;flex:1">Console</div>
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px" onclick="clearCon()">Clear</button>
+      </div>
+      <div id="pcon"></div>
+      <div class="cin-row">
+        <input id="pcin" type="text" placeholder="G-code command…" autocomplete="off" spellcheck="false" />
+        <button class="btn-primary btn-sm" onclick="pSendCon()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
-let printerType = 'octoprint';
-let baseUrl = '', apiKey = '';
-let connected = false, printing = false, paused = false;
-let queue = [], currentItem = null;
-let pollInterval = null, tempInterval = null;
+const printers = new Map();
+let managedId = null;
+let addType = 'usb';
 
-// Bambu Lab
-let mqttClient = null;
-let bambuSerial = '';
-let bambuPin = '';
-let bambuLastState = '';
-
-// Options panel
-function toggleOpts() {
-  const p = document.getElementById('opts-panel');
-  const a = document.getElementById('opts-arrow');
-  const open = p.classList.toggle('open');
-  a.textContent = open ? '⌄' : '›';
-}
-
-// IP helper — reads the big input
-function getIP() { return document.getElementById('wifi-ip-big').value.trim(); }
-
-// ── Credential persistence ─────────────────────────────────────────────────────
-const LS_KEY = 'printara_conn_v2';
-
-function saveCredentials() {
-  const data = {
-    type: printerType,
-    ip:   getIP(),
-    key:  document.getElementById('wifi-key').value.trim(),
-    pin:  document.getElementById('bambu-pin').value.trim(),
-    forceType: document.getElementById('force-type').value,
+// ── Printer factory ────────────────────────────────────────────────────────────
+function mkP(o = {}) {
+  return {
+    id: o.id || uid(), name: o.name || 'Printer',
+    type: o.type || 'usb', ip: o.ip || '',
+    apiKey: o.apiKey || '', pin: o.pin || '',
+    baudRate: o.baudRate || 115200,
+    baseUrl: '',
+    connected: false, connecting: false,
+    status: 'idle', // idle|printing|paused|error
+    hotend: { actual: 0, target: 0 },
+    bed:    { actual: 0, target: 0 },
+    progress: 0, currentFile: '',
+    cameraUrl: '',
+    queue: [], currentItem: null,
+    isPrinting: false, isPaused: false,
+    pollInterval: null, tempInterval: null,
+    serialPort: null, serialReader: null, serialWriter: null,
+    usbBuf: '', usbLines: [], usbIdx: 0, usbWait: false,
+    mqttClient: null, bambuSerial: '', bambuLast: '',
+    logs: [],
   };
-  if (data.ip) localStorage.setItem(LS_KEY, JSON.stringify(data));
 }
 
-function loadAndAutoConnect() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return;
-    const d = JSON.parse(raw);
-    if (!d.ip) return;
-    document.getElementById('wifi-ip-big').value = d.ip || '';
-    document.getElementById('wifi-key').value    = d.key || '';
-    document.getElementById('bambu-pin').value   = d.pin || '';
-    if (d.forceType) document.getElementById('force-type').value = d.forceType;
-    if (d.pin) document.getElementById('opts-panel').classList.add('open');
-    // Auto-connect immediately
-    connectWifi();
-  } catch (_) {}
+// ── Add modal ──────────────────────────────────────────────────────────────────
+function openAdd() { document.getElementById('add-modal').classList.remove('hidden'); document.getElementById('add-name').focus(); }
+function closeAdd() { document.getElementById('add-modal').classList.add('hidden'); resetAddBtn(); }
+function resetAddBtn() { const b = document.getElementById('add-btn'); b.disabled = false; b.textContent = '⚡ Connect'; }
+
+function setAT(t) {
+  addType = t;
+  document.querySelectorAll('[data-at]').forEach(x => x.classList.toggle('active', x.dataset.at === t));
+  document.getElementById('add-usb').classList.toggle('hidden', t !== 'usb');
+  document.getElementById('add-wifi').classList.toggle('hidden', t === 'usb');
+  document.getElementById('add-key-wrap').classList.toggle('hidden', t === 'bambu' || t === 'moonraker');
+  document.getElementById('add-pin-wrap').classList.toggle('hidden', t !== 'bambu');
 }
 
-loadAndAutoConnect();
-
-// ── Connect dispatcher — auto-detects printer type ─────────────────────────────
-async function connectWifi() {
-  if (connected) return;
-  const rawIp = getIP();
-  if (!rawIp) { toast('Enter the printer IP address', 'error'); document.getElementById('wifi-ip-big').focus(); return; }
-
-  const forced = document.getElementById('force-type').value;
-  const pin    = document.getElementById('bambu-pin').value.trim();
-  apiKey       = document.getElementById('wifi-key').value.trim();
-
-  setBtn(true, 'Connecting…');
-  document.getElementById('https-banner').classList.add('hidden');
-  document.getElementById('detected-type').style.display = 'none';
-  showDetecting(true);
-
-  const ip = rawIp.replace(/^https?:\/\//, '');
-  baseUrl = 'http://' + ip;
-
+async function doAdd() {
+  const name = document.getElementById('add-name').value.trim() || 'My Printer';
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+  const p = mkP({
+    name, type: addType,
+    ip:      (document.getElementById('add-ip')  ?.value.trim()) || '',
+    apiKey:  (document.getElementById('add-key') ?.value.trim()) || '',
+    pin:     (document.getElementById('add-pin') ?.value.trim()) || '',
+    baudRate: parseInt(document.getElementById('add-baud')?.value) || 115200,
+  });
+  printers.set(p.id, p);
+  renderCard(p);
   try {
-    if (forced === 'bambu' || (!forced && pin)) {
-      await connectBambu(ip, pin || document.getElementById('bambu-pin').value.trim());
-    } else if (forced) {
-      await connectHttp(forced, ip);
-    } else {
-      await autoDetectHttp(ip);
+    await connectP(p);
+    closeAdd();
+    save();
+    toast(p.name + ' connected!', 'success');
+  } catch (e) {
+    printers.delete(p.id);
+    document.getElementById('card-' + p.id)?.remove();
+    resetAddBtn();
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+// ── Connect dispatcher ─────────────────────────────────────────────────────────
+async function connectP(p) {
+  p.connecting = true; renderCard(p);
+  if (p.type === 'usb')       await connectUSB(p);
+  else if (p.type === 'bambu') await connectBambu(p);
+  else                         await connectHttp(p);
+}
+
+// ── USB Web Serial ─────────────────────────────────────────────────────────────
+async function connectUSB(p) {
+  if (!navigator.serial) throw new Error('Web Serial not supported — use Chrome or Edge');
+  const port = await navigator.serial.requestPort();
+  await port.open({ baudRate: p.baudRate });
+  p.serialPort = port;
+  p.serialWriter = port.writable.getWriter();
+  p.connected = true; p.connecting = false; p.status = 'idle';
+  renderCard(p);
+  readUSB(p);
+  p.tempInterval = setInterval(() => { if (p.connected) usbWrite(p, 'M105\n'); }, 5000);
+  usbWrite(p, 'M115\n');
+  usbWrite(p, 'M105\n');
+}
+
+async function readUSB(p) {
+  const dec = new TextDecoder();
+  try {
+    while (p.serialPort?.readable) {
+      const reader = p.serialPort.readable.getReader();
+      p.serialReader = reader;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          p.usbBuf += dec.decode(value);
+          const lines = p.usbBuf.split('\n');
+          p.usbBuf = lines.pop();
+          for (const l of lines) { const t = l.trim(); if (t) handleUSBLine(p, t); }
+        }
+      } finally { reader.releaseLock(); }
     }
   } catch (e) {
-    setBtn(false, '⚡ Connect');
-    showDetecting(false);
-    log('Connection failed: ' + e.message, 'err');
-    toast('Could not connect — check IP' + (e.message ? ': ' + e.message : ''), 'error');
-    if (location.protocol === 'https:') document.getElementById('https-banner').classList.remove('hidden');
+    if (p.connected) { p.connected = false; p.status = 'error'; renderCard(p); plog(p, 'Disconnected: ' + e.message, 'err'); }
   }
 }
 
-async function autoDetectHttp(ip) {
-  log('Auto-detecting printer at ' + ip + '…', 'info');
-  const hdrs = apiKey ? { 'X-Api-Key': apiKey } : {};
-
-  const tryOcto = fetchWithTimeout('http://' + ip + '/api/version', { headers: hdrs }, 4000)
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('bad status')))
-    .then(d => { if (!d.api) throw new Error(); return { type: 'octoprint', data: d }; });
-
-  const tryMoon = fetchWithTimeout('http://' + ip + '/printer/info', {}, 4000)
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('bad status')))
-    .then(d => { if (!d.result) throw new Error(); return { type: 'moonraker', data: d }; });
-
-  const { type, data } = await Promise.any([tryOcto, tryMoon])
-    .catch(() => { throw new Error('No OctoPrint or Moonraker found at that IP'); });
-
-  printerType = type;
-  if (type === 'octoprint') log('OctoPrint v' + data.server + ' detected', 'info');
-  else                       log('Moonraker detected — state: ' + data.result.state, 'info');
-
-  showDetectedBadge(type === 'octoprint' ? 'OctoPrint' : 'Moonraker', false);
-  connected = true;
-  setConnected(true);
-  startPolling();
-  saveCredentials();
-  toast('Connected via ' + (type === 'octoprint' ? 'OctoPrint' : 'Moonraker') + '!', 'success');
+function handleUSBLine(p, line) {
+  plog(p, line, 'recv');
+  const tm = line.match(/T:(\d+\.?\d*)\s*\/(\d+\.?\d*).*B:(\d+\.?\d*)\s*\/(\d+\.?\d*)/);
+  if (tm) {
+    p.hotend = { actual: +tm[1], target: +tm[2] };
+    p.bed    = { actual: +tm[3], target: +tm[4] };
+    renderCard(p); updatePanelTemps(p);
+  }
+  if (line.startsWith('ok')) {
+    p.usbWait = false;
+    if (p.isPrinting) sendNextUSBLine(p);
+  }
+  const sd = line.match(/SD printing byte (\d+)\/(\d+)/);
+  if (sd) { p.progress = Math.round(+sd[1] / +sd[2] * 100); renderCard(p); updatePanelProg(p); }
 }
 
-async function connectHttp(type, ip) {
-  printerType = type;
-  const hdrs = apiKey ? { 'X-Api-Key': apiKey } : {};
-  log('Connecting to ' + type + ' at ' + ip + '…', 'info');
-  if (type === 'octoprint') {
-    const r = await fetchWithTimeout(baseUrl + '/api/version', { headers: hdrs }, 4000).then(r => r.json());
+async function usbWrite(p, data) {
+  if (!p.serialWriter) return;
+  await p.serialWriter.write(new TextEncoder().encode(data));
+  plog(p, data.trim(), 'sent');
+}
+
+function sendNextUSBLine(p) {
+  if (p.isPaused || p.usbWait) return;
+  while (p.usbIdx < p.usbLines.length) {
+    let line = p.usbLines[p.usbIdx++];
+    const sc = line.indexOf(';'); if (sc > -1) line = line.slice(0, sc);
+    line = line.trim();
+    if (!line) continue;
+    usbWrite(p, line + '\n');
+    p.usbWait = true;
+    p.progress = Math.round(p.usbIdx / p.usbLines.length * 100);
+    renderCard(p); updatePanelProg(p);
+    return;
+  }
+  onDone(p);
+}
+
+function discUSB(p) {
+  clearInterval(p.tempInterval);
+  p.serialReader?.cancel();
+  p.serialWriter?.releaseLock();
+  p.serialPort?.close().catch(() => {});
+  p.serialPort = null; p.serialReader = null; p.serialWriter = null;
+  p.connected = false; p.status = 'idle'; renderCard(p);
+}
+
+// ── HTTP (OctoPrint / Moonraker) ───────────────────────────────────────────────
+async function connectHttp(p) {
+  if (!p.ip) throw new Error('Enter the printer IP');
+  p.baseUrl = 'http://' + p.ip.replace(/^https?:\/\//, '');
+  const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
+
+  if (p.type === 'octoprint') {
+    const r = await ft(p.baseUrl + '/api/version', { headers: h }, 5000).then(r => r.json());
     if (!r.api) throw new Error('Not an OctoPrint server');
-    log('OctoPrint v' + r.server, 'info');
+    plog(p, 'OctoPrint v' + r.server, 'info');
+    try {
+      const s = await ft(p.baseUrl + '/api/settings', { headers: h }, 3000).then(r => r.json());
+      if (s.webcam?.streamUrl) p.cameraUrl = s.webcam.streamUrl.startsWith('http') ? s.webcam.streamUrl : p.baseUrl + s.webcam.streamUrl;
+      else if (s.webcam?.webcamEnabled !== false) p.cameraUrl = p.baseUrl + '/webcam/?action=stream';
+    } catch (_) { p.cameraUrl = p.baseUrl + '/webcam/?action=stream'; }
   } else {
-    const r = await fetchWithTimeout(baseUrl + '/printer/info', {}, 4000).then(r => r.json());
+    const r = await ft(p.baseUrl + '/printer/info', {}, 5000).then(r => r.json());
     if (!r.result) throw new Error('Not a Moonraker server');
-    log('Moonraker — ' + r.result.state, 'info');
-  }
-  showDetectedBadge(type === 'octoprint' ? 'OctoPrint' : 'Moonraker', false);
-  connected = true; setConnected(true); startPolling(); saveCredentials();
-  toast('Connected!', 'success');
-}
-
-function disconnectWifi() {
-  if (printerType === 'bambu') { disconnectBambu(); return; }
-  stopPolling();
-  connected = false; printing = false; paused = false; currentItem = null;
-  setConnected(false); resetProgress();
-  document.getElementById('detected-type').style.display = 'none';
-  log('Disconnected', 'info'); toast('Disconnected', 'info');
-}
-
-function fetchWithTimeout(url, opts, ms) {
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...opts, signal: ctrl.signal });
-}
-
-function showDetecting(on) {
-  document.getElementById('detecting-tag').style.display = on ? 'inline' : 'none';
-}
-
-function showDetectedBadge(label, isBambu) {
-  showDetecting(false);
-  const el = document.getElementById('detected-type');
-  el.textContent = '✓ ' + label;
-  el.className = isBambu ? 'bambu' : '';
-  el.style.display = 'block';
-}
-
-function selectType(type) { printerType = type; }
-
-// ── Bambu Lab: MQTT WebSocket ──────────────────────────────────────────────────
-async function connectBambu(ip, pin) {
-  if (!ip)  { throw new Error('Enter the printer IP address'); }
-  if (!pin) { toast('Enter the Bambu Access Code in Options ↓', 'error'); document.getElementById('opts-panel').classList.add('open'); showDetecting(false); setBtn(false,'⚡ Connect'); return; }
-
-  bambuPin = pin;
-  bambuSerial = '';
-  log('Connecting to Bambu Lab printer at ' + ip + '…', 'info');
-
-  // Bambu MQTT: plain WebSocket on port 2883, TLS on 8884
-  const wsUrl = 'ws://' + ip + ':2883';
-
-  mqttClient = mqtt.connect(wsUrl, {
-    clientId:         'printara_' + Math.random().toString(16).slice(2, 10),
-    username:         'bblp',
-    password:         pin,
-    connectTimeout:   8000,
-    reconnectPeriod:  0,
-    clean:            true,
-  });
-
-  mqttClient.on('connect', () => {
-    log('MQTT connected — waiting for printer hello…', 'info');
-    // Subscribe to all device reports (serial auto-discovered from topic)
-    mqttClient.subscribe('device/+/report', err => {
-      if (err) { log('Subscribe error: ' + err.message, 'err'); return; }
-    });
-  });
-
-  mqttClient.on('message', (topic, raw) => {
-    // Auto-discover serial from topic: device/{SERIAL}/report
-    if (!bambuSerial) {
-      const parts = topic.split('/');
-      if (parts.length === 3) {
-        bambuSerial = parts[1];
-        document.getElementById('bambu-serial-detected').textContent = '✓ Serial: ' + bambuSerial;
-        document.getElementById('bambu-serial-detected').classList.remove('hidden');
-        log('Discovered serial: ' + bambuSerial, 'info');
-        // Request full status dump
-        mqttPublish({ pushing: { sequence_id: '0', command: 'pushall' } });
-      }
-    }
-    if (!connected) {
-      connected = true;
-      setConnected(true);
-      // Show FTP box
-      const ftpIp = getIP().replace(/^https?:\/\//, '');
-      document.getElementById('bambu-ftp-host').textContent = ftpIp;
-      document.getElementById('bambu-ftp-pass').textContent = bambuPin;
-      document.getElementById('bambu-ftp-box').classList.remove('hidden');
-      showDetectedBadge('Bambu Lab', true);
-      saveCredentials();
-      toast('Bambu printer connected!', 'success');
-    }
-    try { handleBambuMessage(JSON.parse(raw.toString())); } catch (_) {}
-  });
-
-  mqttClient.on('error', err => {
-    log('MQTT error: ' + err.message, 'err');
-    if (!connected) {
-      setBtn(false, '📶 Connect');
-      toast('Connection failed: ' + err.message, 'error');
-      if (location.protocol === 'https:') document.getElementById('https-banner').classList.remove('hidden');
-    }
-  });
-
-  mqttClient.on('close', () => {
-    if (connected) {
-      connected = false; printing = false;
-      setConnected(false); resetProgress();
-      log('Bambu disconnected', 'err'); toast('Printer disconnected', 'error');
-    }
-  });
-}
-
-function disconnectBambu() {
-  if (mqttClient) { mqttClient.end(true); mqttClient = null; }
-  bambuSerial = ''; bambuLastState = '';
-  connected = false; printing = false; paused = false; currentItem = null;
-  document.getElementById('bambu-ftp-box').classList.add('hidden');
-  document.getElementById('bambu-serial-detected').classList.add('hidden');
-  document.getElementById('detected-type').style.display = 'none';
-  setConnected(false); resetProgress();
-  log('Disconnected', 'info'); toast('Disconnected', 'info');
-}
-
-function mqttPublish(payload) {
-  if (!mqttClient || !bambuSerial) return;
-  mqttClient.publish('device/' + bambuSerial + '/request', JSON.stringify(payload));
-}
-
-function handleBambuMessage(data) {
-  const p = data.print;
-  if (!p) return;
-
-  // Temperatures
-  if (p.nozzle_temper !== undefined) {
-    updateTemps(
-      { actual: p.nozzle_temper,    target: p.nozzle_target_temper || 0 },
-      { actual: p.bed_temper || 0,  target: p.bed_target_temper    || 0 }
-    );
+    plog(p, 'Moonraker — ' + r.result.state, 'info');
+    try {
+      const wc = await ft(p.baseUrl + '/server/webcams/list', {}, 3000).then(r => r.json());
+      const cams = wc.result?.webcams || [];
+      if (cams.length) { const u = cams[0].stream_url || ''; p.cameraUrl = u.startsWith('http') ? u : p.baseUrl + u; }
+    } catch (_) { p.cameraUrl = p.baseUrl + '/webcam/?action=stream'; }
   }
 
-  // Print state: IDLE | RUNNING | PAUSE | FINISH | FAILED | PREPARE
-  const state = p.gcode_state;
-  if (!state) return;
-
-  if (state === 'RUNNING') {
-    const pct = p.mc_percent || 0;
-    const rem = p.mc_remaining_time;
-    const subtitle = rem ? rem + ' min remaining' : pct + '% complete';
-    setProgress(pct, p.subtask_name || (currentItem && currentItem.name) || 'Printing…', subtitle);
-    if (!printing && currentItem) { printing = true; setPill('printing'); }
-  }
-
-  if (state === 'PAUSE' && bambuLastState !== 'PAUSE') {
-    paused = true;
-    document.getElementById('pause-btn').classList.add('hidden');
-    document.getElementById('resume-btn').classList.remove('hidden');
-    log('Print paused by printer', 'info');
-  }
-
-  if ((state === 'FINISH' || state === 'FAILED') && bambuLastState === 'RUNNING') {
-    if (state === 'FAILED') {
-      log('Print failed!', 'err'); toast('Print failed', 'error');
-      if (currentItem) { currentItem.status = 'error'; currentItem = null; }
-    } else {
-      onPrintDone();
-    }
-  }
-
-  if (state !== bambuLastState) {
-    log('Bambu state: ' + state + (p.subtask_name ? ' — ' + p.subtask_name : ''), 'info');
-    bambuLastState = state;
-  }
+  p.connected = true; p.connecting = false; p.status = 'idle';
+  renderCard(p); startPoll(p);
 }
 
-// ── HTTP helpers (OctoPrint / Moonraker) ───────────────────────────────────────
-async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (printerType === 'octoprint' && apiKey) headers['X-Api-Key'] = apiKey;
-  const res = await fetch(baseUrl + path, { ...opts, headers });
-  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-  if (res.status === 204) return {};
-  return res.json();
+function startPoll(p) {
+  stopPoll(p);
+  p.tempInterval = setInterval(() => pollTemps(p), 5000);
+  p.pollInterval = setInterval(() => pollStatus(p), 3000);
+  pollTemps(p); pollStatus(p);
 }
+function stopPoll(p) { clearInterval(p.tempInterval); clearInterval(p.pollInterval); }
 
-async function apiPost(path, body) {
-  return apiFetch(path, { method: 'POST', body: JSON.stringify(body) });
-}
-
-async function uploadFile(file) {
-  const form = new FormData();
-  if (printerType === 'octoprint') {
-    form.append('file', file, file.name);
-    form.append('print', 'false');
-    const headers = {};
-    if (apiKey) headers['X-Api-Key'] = apiKey;
-    const res = await fetch(baseUrl + '/api/files/local', { method: 'POST', headers, body: form });
-    if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
-    return res.json();
-  } else {
-    form.append('file', file, file.name);
-    const res = await fetch(baseUrl + '/server/files/upload', { method: 'POST', body: form });
-    if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
-    return res.json();
-  }
-}
-
-// ── G-code command (all modes) ─────────────────────────────────────────────────
-async function cmd(command) {
-  if (!connected) { toast('Not connected', 'error'); return; }
-  log(command, 'sent');
+async function pollTemps(p) {
+  if (!p.connected || p.type === 'bambu' || p.type === 'usb') return;
+  const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
   try {
-    if (printerType === 'bambu') {
-      mqttPublish({ print: { sequence_id: '0', command: 'gcode_line', param: command } });
-    } else if (printerType === 'octoprint') {
-      await apiPost('/api/printer/command', { command });
+    if (p.type === 'octoprint') {
+      const r = await ft(p.baseUrl + '/api/printer', { headers: h }, 3000).then(r => r.json());
+      if (r.temperature) { p.hotend = r.temperature.tool0 || p.hotend; p.bed = r.temperature.bed || p.bed; }
     } else {
-      await apiPost('/printer/gcode/script', { script: command });
-    }
-  } catch (e) { log('Error: ' + e.message, 'err'); }
-}
-
-// ── Polling (OctoPrint / Moonraker only) ───────────────────────────────────────
-function startPolling() {
-  stopPolling();
-  pollInterval = setInterval(pollStatus, 3000);
-  tempInterval = setInterval(pollTemps, 5000);
-  pollStatus(); pollTemps();
-}
-
-function stopPolling() {
-  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-  if (tempInterval) { clearInterval(tempInterval); tempInterval = null; }
-}
-
-async function pollTemps() {
-  if (!connected || printerType === 'bambu') return;
-  try {
-    if (printerType === 'octoprint') {
-      const r = await apiFetch('/api/printer');
-      if (r.temperature) updateTemps(r.temperature.tool0, r.temperature.bed);
-    } else {
-      const r = await apiFetch('/printer/objects/query?extruder&heater_bed');
+      const r = await ft(p.baseUrl + '/printer/objects/query?extruder&heater_bed', {}, 3000).then(r => r.json());
       const s = r.result?.status || {};
-      updateTemps(
-        s.extruder    ? { actual: s.extruder.temperature,    target: s.extruder.target    } : null,
-        s.heater_bed  ? { actual: s.heater_bed.temperature,  target: s.heater_bed.target  } : null
-      );
+      if (s.extruder)   p.hotend = { actual: s.extruder.temperature,   target: s.extruder.target };
+      if (s.heater_bed) p.bed    = { actual: s.heater_bed.temperature, target: s.heater_bed.target };
     }
+    renderCard(p); updatePanelTemps(p);
   } catch (_) {}
 }
 
-function updateTemps(e, b) {
-  if (e != null) {
-    const el = document.getElementById('t-hotend');
-    el.textContent = parseFloat(e.actual).toFixed(1) + '°';
-    el.className = 'val' + (e.actual > 60 ? ' hot' : e.actual > 35 ? ' warm' : '');
-    document.getElementById('t-hotend-tgt').textContent = e.target > 0 ? '→ ' + e.target + '°' : '';
-  }
-  if (b != null) {
-    const el = document.getElementById('t-bed');
-    el.textContent = parseFloat(b.actual).toFixed(1) + '°';
-    el.className = 'val' + (b.actual > 50 ? ' hot' : b.actual > 30 ? ' warm' : '');
-    document.getElementById('t-bed-tgt').textContent = b.target > 0 ? '→ ' + b.target + '°' : '';
-  }
-}
-
-async function pollStatus() {
-  if (!connected || !printing || printerType === 'bambu') return;
+async function pollStatus(p) {
+  if (!p.connected || !p.isPrinting || p.type === 'bambu' || p.type === 'usb') return;
+  const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
   try {
-    if (printerType === 'octoprint') {
-      const r = await apiFetch('/api/job');
-      const pct = Math.round(r.progress?.completion || 0);
-      if (r.state === 'Printing') setProgress(pct, currentItem?.name, '');
-      else if (r.state === 'Operational' || r.state === 'Finishing') onPrintDone();
+    if (p.type === 'octoprint') {
+      const r = await ft(p.baseUrl + '/api/job', { headers: h }, 3000).then(r => r.json());
+      p.progress = Math.round(r.progress?.completion || 0);
+      if (r.state === 'Operational' || r.state === 'Finishing') onDone(p);
     } else {
-      const r = await apiFetch('/printer/objects/query?print_stats');
+      const r = await ft(p.baseUrl + '/printer/objects/query?print_stats', {}, 3000).then(r => r.json());
       const ps = r.result?.status?.print_stats;
       if (!ps) return;
-      const pct = ps.total_duration > 0 ? Math.min(99, Math.round(ps.print_duration / ps.total_duration * 100)) : 0;
-      if (ps.state === 'printing') setProgress(pct, currentItem?.name, '');
-      else if (ps.state === 'complete') onPrintDone();
-      else if (ps.state === 'error') { log('Printer error', 'err'); toast('Printer error', 'error'); }
+      p.progress = ps.total_duration > 0 ? Math.min(99, Math.round(ps.print_duration / ps.total_duration * 100)) : 0;
+      if (ps.state === 'complete') onDone(p);
+      else if (ps.state === 'error') { p.status = 'error'; }
     }
+    renderCard(p); updatePanelProg(p);
   } catch (_) {}
 }
 
-// ── Queue management ───────────────────────────────────────────────────────────
-function addFiles() {
-  const input = document.createElement('input');
-  input.type = 'file'; input.multiple = true;
-  input.accept = printerType === 'bambu' ? '.gcode,.3mf,.g,.gc,.gco' : '.gcode,.g,.gc,.gco,.ngc';
-  input.onchange = () => {
-    for (const file of input.files) {
-      queue.push({ id: uid(), name: file.name, file, status: 'queued', addedAt: new Date().toISOString() });
-    }
-    renderQueue();
-    toast('Added ' + input.files.length + ' file(s)', 'success');
-    if (printerType === 'bambu') toast('Upload these to your printer via FTP before starting queue', 'info');
-  };
-  input.click();
-}
+function discHttp(p) { stopPoll(p); p.connected = false; p.status = 'idle'; p.isPrinting = false; renderCard(p); }
 
-function clearDone() {
-  queue = queue.filter(i => i.status === 'queued' || i.status === 'printing');
-  renderQueue();
-}
-
-function renderQueue() {
-  const pending = queue.filter(i => i.status === 'queued' || i.status === 'printing');
-  document.getElementById('q-count').textContent = pending.length + ' item' + (pending.length !== 1 ? 's' : '');
-  document.getElementById('empty-state').style.display = queue.length === 0 ? 'flex' : 'none';
-  document.querySelectorAll('.q-item').forEach(e => e.remove());
-
-  for (const item of queue) {
-    const cls   = { printing:'active', uploading:'active', done:'done', cancelled:'cancelled' }[item.status] || '';
-    const icon  = { done:'✓', printing:'⚙', uploading:'↑' }[item.status] || '📄';
-    const label = { queued:'Queued', uploading:'Uploading…', printing:'Printing…', done:'Done', cancelled:'Cancelled', error:'Error' }[item.status] || item.status;
-    const t = new Date(item.addedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-
-    const div = document.createElement('div');
-    div.className = 'q-item ' + cls;
-    div.innerHTML = `
-      <div class="q-icon">${icon}</div>
-      <div class="q-info">
-        <div class="q-name" title="${item.name}">${item.name}</div>
-        <div class="q-meta">${t}</div>
-      </div>
-      <div class="q-badge badge-${item.status}">${label}</div>
-      <div class="q-actions">
-        ${item.status === 'queued' ? `
-          <button class="btn-icon" onclick="moveItem('${item.id}','up')">↑</button>
-          <button class="btn-icon" onclick="moveItem('${item.id}','down')">↓</button>
-          <button class="btn-icon" onclick="removeItem('${item.id}')">✕</button>
-        ` : ''}
-      </div>`;
-    document.getElementById('drop-zone').appendChild(div);
-  }
-
-  document.getElementById('start-btn').disabled =
-    !connected || printing || pending.filter(i => i.status === 'queued').length === 0;
-}
-
-function moveItem(id, dir) {
-  const i = queue.findIndex(x => x.id === id);
-  if (dir === 'up'   && i > 0)              [queue[i-1], queue[i]] = [queue[i], queue[i-1]];
-  if (dir === 'down' && i < queue.length-1) [queue[i+1], queue[i]] = [queue[i], queue[i+1]];
-  renderQueue();
-}
-
-function removeItem(id) {
-  queue = queue.filter(x => x.id !== id);
-  renderQueue();
-}
-
-// drag & drop
-const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('over');
-  const files = Array.from(e.dataTransfer.files).filter(f => /\.(gcode|g|gc|gco|ngc|3mf)$/i.test(f.name));
-  if (!files.length) { toast('Drop .gcode or .3mf files', 'error'); return; }
-  files.forEach(f => queue.push({ id: uid(), name: f.name, file: f, status: 'queued', addedAt: new Date().toISOString() }));
-  renderQueue();
-  toast('Added ' + files.length + ' file(s)', 'success');
-});
-
-// ── Print execution ────────────────────────────────────────────────────────────
-async function startQueue() {
-  const next = queue.find(i => i.status === 'queued');
-  if (!next || !connected) return;
-  await startPrint(next);
-}
-
-async function startPrint(item) {
-  currentItem = item;
-  item.status = printerType === 'bambu' ? 'printing' : 'uploading';
-  printing = true; paused = false;
-  renderQueue();
-
-  document.getElementById('prog-file').classList.remove('idle');
-  document.getElementById('prog-file').textContent = item.name;
-  document.getElementById('pause-btn').disabled  = false;
-  document.getElementById('cancel-btn').disabled = false;
-  document.getElementById('start-btn').disabled  = true;
-  setPill('printing');
-
-  if (printerType === 'bambu') {
-    await startBambuPrint(item);
-  } else {
-    await startHttpPrint(item);
-  }
-}
-
-async function startBambuPrint(item) {
-  setProgress(0, item.name, 'Sending print command…');
-  log('Starting Bambu print: ' + item.name, 'info');
-  const ip = getIP().replace(/^https?:\/\//, '');
-  // Tell the printer to print the file from its local FTP storage
-  mqttPublish({
-    print: {
-      sequence_id: '0',
-      command:      'project_file',
-      param:        'Metadata/plate_1.gcode',
-      subtask_name: item.name.replace(/\.[^.]+$/, ''),
-      url:          'ftp://' + ip + '/model/' + item.name,
-      timelapse:    false,
-      bed_leveling: true,
-      flow_cali:    false,
-      vibration_cali: false,
-      layer_inspect:  false,
-      ams_mapping:    [],
-    }
+// ── Bambu Lab ──────────────────────────────────────────────────────────────────
+async function connectBambu(p) {
+  if (!p.ip)  throw new Error('Enter the printer IP');
+  if (!p.pin) throw new Error('Enter the access code');
+  return new Promise((res, rej) => {
+    const ws = 'ws://' + p.ip.replace(/^https?:\/\//, '') + ':2883';
+    p.mqttClient = mqtt.connect(ws, { clientId: 'printara_' + uid().slice(0,8), username: 'bblp', password: p.pin, connectTimeout: 8000, reconnectPeriod: 0, clean: true });
+    let ok = false;
+    p.mqttClient.on('connect', () => p.mqttClient.subscribe('device/+/report'));
+    p.mqttClient.on('message', (topic, raw) => {
+      if (!p.bambuSerial) {
+        const pts = topic.split('/');
+        if (pts.length === 3) { p.bambuSerial = pts[1]; bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } }); }
+      }
+      if (!ok) { ok = true; p.connected = true; p.connecting = false; p.status = 'idle'; renderCard(p); res(); }
+      try { handleBambu(p, JSON.parse(raw.toString())); } catch (_) {}
+    });
+    p.mqttClient.on('error', e => { if (!ok) { ok = true; rej(e); } });
+    p.mqttClient.on('close', () => { if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); } });
+    setTimeout(() => { if (!ok) { ok = true; rej(new Error('Timeout')); } }, 9000);
   });
-  toast('Print command sent to Bambu printer', 'info');
 }
 
-async function startHttpPrint(item) {
-  setProgress(0, item.name, 'Uploading…');
-  log('Uploading: ' + item.name, 'info');
-  try {
-    await uploadFile(item.file);
-    log('Upload done — starting print', 'info');
-    if (printerType === 'octoprint') {
-      await apiPost('/api/files/local/' + encodeURIComponent(item.name), { command: 'select', print: true });
-    } else {
-      await apiPost('/printer/print/start', { filename: item.name });
-    }
-    item.status = 'printing';
-    renderQueue();
-    toast('Printing: ' + item.name, 'info');
-    setProgress(0, item.name, 'Print started…');
-  } catch (e) {
-    item.status = 'error';
-    printing = false; currentItem = null;
-    renderQueue(); resetProgress();
-    log('Error: ' + e.message, 'err'); toast('Failed: ' + e.message, 'error');
+function bPub(p, payload) { if (p.mqttClient && p.bambuSerial) p.mqttClient.publish('device/' + p.bambuSerial + '/request', JSON.stringify(payload)); }
+
+function handleBambu(p, data) {
+  const m = data.print; if (!m) return;
+  if (m.nozzle_temper !== undefined) {
+    p.hotend = { actual: m.nozzle_temper, target: m.nozzle_target_temper || 0 };
+    p.bed    = { actual: m.bed_temper || 0, target: m.bed_target_temper || 0 };
+    renderCard(p); updatePanelTemps(p);
   }
+  const st = m.gcode_state; if (!st) return;
+  if (st === 'RUNNING') { p.progress = m.mc_percent || 0; p.currentFile = m.subtask_name || p.currentFile; p.status = 'printing'; p.isPrinting = true; renderCard(p); updatePanelProg(p); }
+  if (st === 'PAUSE') { p.status = 'paused'; p.isPaused = true; renderCard(p); }
+  if ((st === 'FINISH' || st === 'FAILED') && p.bambuLast === 'RUNNING') {
+    if (st === 'FINISH') onDone(p); else { p.status = 'error'; p.isPrinting = false; renderCard(p); }
+  }
+  if (st !== p.bambuLast) { plog(p, 'Bambu: ' + st, 'info'); p.bambuLast = st; }
 }
 
-function onPrintDone() {
-  if (!currentItem) return;
-  currentItem.status = 'done';
-  const done = currentItem;
-  currentItem = null; printing = false;
-  renderQueue();
-  setProgress(100, done.name, 'Complete!');
-  log('Done: ' + done.name, 'info');
-  toast('Print complete: ' + done.name + ' ✓', 'success');
-  setTimeout(async () => {
-    const next = queue.find(i => i.status === 'queued');
-    if (next) await startPrint(next);
-    else { resetProgress(); log('All done!', 'info'); toast('Queue complete!', 'success'); }
+function discBambu(p) { p.mqttClient?.end(true); p.mqttClient = null; p.bambuSerial = ''; p.bambuLast = ''; p.connected = false; p.status = 'idle'; renderCard(p); }
+
+// ── Generic disconnect ─────────────────────────────────────────────────────────
+function discP(p) {
+  if (p.type === 'usb') discUSB(p);
+  else if (p.type === 'bambu') discBambu(p);
+  else discHttp(p);
+}
+
+// ── Send G-code ────────────────────────────────────────────────────────────────
+async function sendCmd(p, cmd) {
+  if (!p.connected) return;
+  plog(p, cmd, 'sent');
+  if (p.type === 'usb') { await usbWrite(p, cmd + '\n'); return; }
+  if (p.type === 'bambu') { bPub(p, { print: { sequence_id: '0', command: 'gcode_line', param: cmd } }); return; }
+  const h = { 'Content-Type': 'application/json', ...(p.apiKey ? { 'X-Api-Key': p.apiKey } : {}) };
+  if (p.type === 'octoprint') await fetch(p.baseUrl + '/api/printer/command', { method: 'POST', headers: h, body: JSON.stringify({ command: cmd }) });
+  else                        await fetch(p.baseUrl + '/printer/gcode/script',  { method: 'POST', headers: h, body: JSON.stringify({ script: cmd }) });
+}
+
+// ── Print flow ─────────────────────────────────────────────────────────────────
+function onDone(p) {
+  if (p.currentItem) p.currentItem.status = 'done';
+  const done = p.currentItem;
+  p.currentItem = null; p.isPrinting = false; p.isPaused = false;
+  p.status = 'idle'; p.progress = 100;
+  renderCard(p); renderPQ();
+  toast('Print complete: ' + (done?.name || '') + ' ✓', 'success');
+  setTimeout(() => {
+    const next = p.queue.find(i => i.status === 'queued');
+    if (next) startPrint(p, next); else { p.progress = 0; renderCard(p); }
   }, 3000);
 }
 
-async function pausePrint() {
-  try {
-    if (printerType === 'bambu') {
-      mqttPublish({ print: { sequence_id: '0', command: 'pause' } });
-    } else if (printerType === 'octoprint') {
-      await apiPost('/api/job', { command: 'pause', action: 'pause' });
-    } else {
-      await fetch(baseUrl + '/printer/print/pause', { method: 'POST' });
-    }
-    paused = true;
-    document.getElementById('pause-btn').classList.add('hidden');
-    document.getElementById('resume-btn').classList.remove('hidden');
-    log('Paused', 'info'); toast('Print paused', 'info');
-  } catch (e) { toast(e.message, 'error'); }
+async function startPrint(p, item) {
+  p.currentItem = item; item.status = 'printing';
+  p.isPrinting = true; p.isPaused = false; p.status = 'printing'; p.currentFile = item.name;
+  renderCard(p); renderPQ(); updatePanelProg(p);
+  document.getElementById('p-pause').disabled  = false;
+  document.getElementById('p-cancel').disabled = false;
+  document.getElementById('p-start').disabled  = true;
+
+  if (p.type === 'usb') {
+    const text = await item.file.text();
+    p.usbLines = text.split('\n'); p.usbIdx = 0; p.usbWait = false;
+    sendNextUSBLine(p);
+    return;
+  }
+  if (p.type === 'bambu') {
+    bPub(p, { print: { sequence_id: '0', command: 'project_file', param: 'Metadata/plate_1.gcode', subtask_name: item.name.replace(/\.[^.]+$/, ''), url: 'ftp://' + p.ip + '/model/' + item.name, timelapse: false, bed_leveling: true, flow_cali: false, vibration_cali: false, layer_inspect: false, ams_mapping: [] } });
+    return;
+  }
+  const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
+  item.status = 'uploading'; renderPQ();
+  const form = new FormData(); form.append('file', item.file, item.name);
+  if (p.type === 'octoprint') {
+    form.append('print', 'false');
+    await fetch(p.baseUrl + '/api/files/local', { method: 'POST', headers: h, body: form });
+    await fetch(p.baseUrl + '/api/files/local/' + encodeURIComponent(item.name), { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ command: 'select', print: true }) });
+  } else {
+    await fetch(p.baseUrl + '/server/files/upload', { method: 'POST', body: form });
+    await fetch(p.baseUrl + '/printer/print/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: item.name }) });
+  }
+  item.status = 'printing'; renderPQ();
 }
 
-async function resumePrint() {
-  try {
-    if (printerType === 'bambu') {
-      mqttPublish({ print: { sequence_id: '0', command: 'resume' } });
-    } else if (printerType === 'octoprint') {
-      await apiPost('/api/job', { command: 'pause', action: 'resume' });
-    } else {
-      await fetch(baseUrl + '/printer/print/resume', { method: 'POST' });
-    }
-    paused = false;
-    document.getElementById('resume-btn').classList.add('hidden');
-    document.getElementById('pause-btn').classList.remove('hidden');
-    log('Resumed', 'info');
-  } catch (e) { toast(e.message, 'error'); }
+async function pausePrint(p) {
+  const h = { 'Content-Type': 'application/json', ...(p.apiKey ? { 'X-Api-Key': p.apiKey } : {}) };
+  if (p.type === 'usb')       { p.isPaused = true; }
+  else if (p.type === 'bambu') bPub(p, { print: { sequence_id: '0', command: 'pause' } });
+  else if (p.type === 'octoprint') await fetch(p.baseUrl + '/api/job', { method: 'POST', headers: h, body: JSON.stringify({ command: 'pause', action: 'pause' }) });
+  else                             await fetch(p.baseUrl + '/printer/print/pause', { method: 'POST' });
+  p.isPaused = true; p.status = 'paused'; renderCard(p);
+  document.getElementById('p-pause').classList.add('hidden');
+  document.getElementById('p-resume').classList.remove('hidden');
 }
 
-async function cancelPrint() {
+async function resumePrint(p) {
+  const h = { 'Content-Type': 'application/json', ...(p.apiKey ? { 'X-Api-Key': p.apiKey } : {}) };
+  if (p.type === 'usb')        { p.isPaused = false; sendNextUSBLine(p); }
+  else if (p.type === 'bambu') bPub(p, { print: { sequence_id: '0', command: 'resume' } });
+  else if (p.type === 'octoprint') await fetch(p.baseUrl + '/api/job', { method: 'POST', headers: h, body: JSON.stringify({ command: 'pause', action: 'resume' }) });
+  else                             await fetch(p.baseUrl + '/printer/print/resume', { method: 'POST' });
+  p.isPaused = false; p.status = 'printing'; renderCard(p);
+  document.getElementById('p-resume').classList.add('hidden');
+  document.getElementById('p-pause').classList.remove('hidden');
+}
+
+async function cancelPrint(p) {
   if (!confirm('Cancel the current print?')) return;
-  try {
-    if (printerType === 'bambu') {
-      mqttPublish({ print: { sequence_id: '0', command: 'stop' } });
-    } else if (printerType === 'octoprint') {
-      await apiPost('/api/job', { command: 'cancel' });
-    } else {
-      await fetch(baseUrl + '/printer/print/cancel', { method: 'POST' });
-    }
-    if (currentItem) { currentItem.status = 'cancelled'; currentItem = null; }
-    printing = false; paused = false;
-    renderQueue(); resetProgress();
-    log('Cancelled', 'err'); toast('Print cancelled', 'error');
-  } catch (e) { toast(e.message, 'error'); }
+  const h = { 'Content-Type': 'application/json', ...(p.apiKey ? { 'X-Api-Key': p.apiKey } : {}) };
+  if (p.type === 'usb')        { p.usbLines = []; p.usbIdx = 0; p.usbWait = false; }
+  else if (p.type === 'bambu') bPub(p, { print: { sequence_id: '0', command: 'stop' } });
+  else if (p.type === 'octoprint') await fetch(p.baseUrl + '/api/job', { method: 'POST', headers: h, body: JSON.stringify({ command: 'cancel' }) });
+  else                             await fetch(p.baseUrl + '/printer/print/cancel', { method: 'POST' });
+  if (p.currentItem) p.currentItem.status = 'cancelled';
+  p.currentItem = null; p.isPrinting = false; p.isPaused = false; p.status = 'idle'; p.progress = 0;
+  renderCard(p); renderPQ(); updatePanelProg(p);
 }
 
-// ── UI helpers ─────────────────────────────────────────────────────────────────
-function setConnected(on) {
-  document.getElementById('connect-btn').classList.toggle('hidden', on);
-  document.getElementById('disconnect-btn').classList.toggle('hidden', !on);
-  ['wifi-ip-big','wifi-key','bambu-pin','force-type'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = on; });
-  document.getElementById('start-btn').disabled = !on || printing;
-  setPill(on ? 'connected' : '');
+// ── Manage panel ───────────────────────────────────────────────────────────────
+function openManage(id) {
+  managedId = id;
+  const p = printers.get(id); if (!p) return;
+  document.getElementById('pt').textContent = p.name;
+  document.getElementById('manage-panel').classList.remove('closed');
+  const img = document.getElementById('pcam-img');
+  const nc  = document.getElementById('pnc');
+  const live = document.getElementById('plive');
+  if (p.cameraUrl) {
+    img.src = p.cameraUrl; img.classList.remove('hidden'); nc.classList.add('hidden'); live.classList.remove('hidden');
+  } else {
+    img.classList.add('hidden'); nc.classList.remove('hidden'); live.classList.add('hidden');
+  }
+  renderPQ(); updatePanelProg(p); updatePanelTemps(p);
+  const con = document.getElementById('pcon'); con.innerHTML = '';
+  for (const m of p.logs) { const d = document.createElement('div'); d.className = 'cl ' + (m.t||''); d.textContent = ({sent:'→ ',info:'◉ ',err:'✗ '}[m.t]||'← ') + m.s; con.appendChild(d); }
+  con.scrollTop = con.scrollHeight;
+}
+function closeManage() { managedId = null; document.getElementById('manage-panel').classList.add('closed'); }
+function disconnectManaged() { const p = printers.get(managedId); if (p) discP(p); closeManage(); }
+
+function updatePanelProg(p) {
+  if (managedId !== p.id) return;
+  document.getElementById('ppfile').textContent = p.currentFile || (p.isPrinting ? 'Printing…' : 'Nothing printing');
+  document.getElementById('ppfill').style.width = p.progress + '%';
+  document.getElementById('pppct').textContent  = p.isPrinting ? p.progress + '%' : '';
+  document.getElementById('p-pause').disabled   = !p.isPrinting;
+  document.getElementById('p-cancel').disabled  = !p.isPrinting;
+  document.getElementById('p-start').disabled   = !p.connected || p.isPrinting;
 }
 
-function setBtn(loading, label) {
-  const btn = document.getElementById('connect-btn');
-  btn.disabled = loading;
-  btn.textContent = label;
+function updatePanelTemps(p) {
+  if (managedId !== p.id) return;
+  const fmtV = (v, el, cls) => {
+    el.textContent = v.actual.toFixed(1) + '°';
+    el.className = 'val' + (v.actual > (cls === 'h' ? 60 : 50) ? ' hot' : v.actual > (cls === 'h' ? 35 : 30) ? ' warm' : '');
+  };
+  fmtV(p.hotend, document.getElementById('pt-hotend'), 'h');
+  fmtV(p.bed,    document.getElementById('pt-bed'),    'b');
+  document.getElementById('pt-hotend-tgt').textContent = p.hotend.target > 0 ? '→ ' + p.hotend.target + '°' : '';
+  document.getElementById('pt-bed-tgt').textContent    = p.bed.target    > 0 ? '→ ' + p.bed.target    + '°' : '';
 }
 
-function setProgress(pct, filename, subtitle) {
-  document.getElementById('prog-fill').style.width = pct + '%';
-  document.getElementById('prog-pct').textContent  = pct + '%';
-  document.getElementById('prog-gcode').textContent = subtitle || (filename ? filename + ' — ' + pct + '% complete' : pct + '% complete');
+function renderPQ() {
+  const p = printers.get(managedId); if (!p) return;
+  const el = document.getElementById('pqueue');
+  if (!p.queue.length) { el.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:14px">No files queued</div>'; return; }
+  el.innerHTML = '';
+  for (const item of p.queue) {
+    const d = document.createElement('div');
+    d.className = 'qi' + (item === p.currentItem ? ' active' : '');
+    d.innerHTML = `<div class="qname" title="${item.name}">${item.name}</div><div class="qbadge badge-${item.status}">${item.status}</div>${item.status==='queued'?`<button onclick="rmQI('${p.id}','${item.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px">✕</button>`:''}`;
+    el.appendChild(d);
+  }
+  document.getElementById('p-start').disabled = !p.connected || p.isPrinting || !p.queue.some(i=>i.status==='queued');
 }
 
-function resetProgress() {
-  document.getElementById('prog-file').textContent = 'No active print';
-  document.getElementById('prog-file').classList.add('idle');
-  document.getElementById('prog-fill').style.width = '0%';
-  document.getElementById('prog-pct').textContent = '—';
-  document.getElementById('prog-gcode').textContent = 'Connect a printer to begin';
-  document.getElementById('pause-btn').disabled = true;
-  document.getElementById('resume-btn').classList.add('hidden');
-  document.getElementById('pause-btn').classList.remove('hidden');
-  document.getElementById('cancel-btn').disabled = true;
-  document.getElementById('start-btn').disabled = !connected;
-  setPill(connected ? 'connected' : '');
+function rmQI(pid, iid) { const p = printers.get(pid); if (p) { p.queue = p.queue.filter(i=>i.id!==iid); renderPQ(); } }
+
+function pAddFiles() {
+  const p = printers.get(managedId); if (!p) return;
+  const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.gcode,.g,.gc,.gco,.ngc,.3mf';
+  inp.onchange = () => { for (const f of inp.files) p.queue.push({ id: uid(), name: f.name, file: f, status: 'queued' }); renderPQ(); };
+  inp.click();
+}
+function pStart()   { const p = printers.get(managedId); if (!p || p.isPrinting) return; const n = p.queue.find(i=>i.status==='queued'); if (n) startPrint(p, n); }
+function pPause()   { const p = printers.get(managedId); if (p) pausePrint(p); }
+function pResume()  { const p = printers.get(managedId); if (p) resumePrint(p); }
+function pCancel()  { const p = printers.get(managedId); if (p) cancelPrint(p); }
+function pCmd(cmd)  { const p = printers.get(managedId); if (p && p.connected) sendCmd(p, cmd); }
+function pSendCon() { const i = document.getElementById('pcin'); const v = i.value.trim(); if (!v) return; pCmd(v); i.value = ''; }
+function clearCon() { const p = printers.get(managedId); if (p) { p.logs = []; document.getElementById('pcon').innerHTML = ''; } }
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderCard(p) {
+  const existing = document.getElementById('card-' + p.id);
+  const card = buildCard(p);
+  if (existing) existing.replaceWith(card);
+  else document.getElementById('dashboard').insertBefore(card, document.querySelector('.add-card'));
 }
 
-function setPill(state) {
-  const pill = document.getElementById('status-pill');
-  pill.className = 'status-pill' + (state ? ' ' + state : '');
-  document.getElementById('status-txt').textContent =
-    state === 'printing' ? 'Printing' : state === 'connected' ? 'Ready' : 'Disconnected';
-}
-
-// ── Console ────────────────────────────────────────────────────────────────────
-function log(text, type) {
-  const out = document.getElementById('console-out');
-  const d = document.createElement('div');
-  d.className = 'cl ' + (type || '');
-  d.textContent = ({ sent:'→ ', info:'◉ ', err:'✗ ' }[type] || '← ') + text;
-  out.appendChild(d);
-  out.scrollTop = out.scrollHeight;
-  while (out.children.length > 500) out.removeChild(out.firstChild);
-}
-
-function clearConsole() { document.getElementById('console-out').innerHTML = ''; }
-
-async function sendConsole() {
-  const input = document.getElementById('console-input');
-  const v = input.value.trim();
-  if (!v) return;
-  await cmd(v);
-  input.value = '';
-}
-
-document.getElementById('console-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendConsole(); });
-document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='o') { e.preventDefault(); addFiles(); } });
-
-// Enter on any connection field triggers connect
-['wifi-ip-big','wifi-key','bambu-pin'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter' && !connected) connectWifi(); });
-});
-
-// ── Toasts ─────────────────────────────────────────────────────────────────────
-function toast(msg, type = 'info') {
+function buildCard(p) {
   const el = document.createElement('div');
-  el.className = 'toast ' + type; el.textContent = msg;
-  document.getElementById('toasts').appendChild(el);
-  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(() => el.remove(), 300); }, 4000);
+  el.id = 'card-' + p.id;
+  el.className = 'printer-card' + (p.status==='printing'?' printing':p.status==='error'?' error':'');
+  const dotCls = !p.connected ? '' : p.status === 'printing' ? 'printing' : 'on';
+  const tLabel = { octoprint:'OctoPrint', moonraker:'Moonraker', bambu:'Bambu Lab', usb:'USB Serial' }[p.type] || p.type;
+  const hv = p.hotend.actual.toFixed(1) + '°', hc = p.hotend.actual > 60 ? 'hot' : p.hotend.actual > 35 ? 'warm' : '';
+  const bv = p.bed.actual.toFixed(1)    + '°', bc = p.bed.actual    > 50 ? 'hot' : p.bed.actual    > 30 ? 'warm' : '';
+
+  el.innerHTML = `
+    <div class="card-cam">
+      ${p.cameraUrl
+        ? `<img src="${p.cameraUrl}" alt="cam" onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden')" /><div class="no-cam hidden"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M9 6l1.5-2h3L15 6"/></svg>Camera unavailable</div><div class="live-badge">● LIVE</div>`
+        : `<div class="no-cam"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><rect x="2" y="6" width="20" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M9 6l1.5-2h3L15 6"/></svg>${p.type==='usb'?'USB — no camera':'No camera'}</div>`}
+    </div>
+    <div class="card-body">
+      <div class="card-hdr">
+        <div class="pname">${p.name}${p.connecting?' <span style="color:var(--text3);font-weight:400;font-size:11px">connecting…</span>':''}</div>
+        <div class="tbadge ${p.type}">${tLabel}</div>
+        <div class="sdot ${dotCls}"></div>
+      </div>
+      <div class="temps">
+        <div class="tchip"><div class="lbl">Hotend</div><div class="val ${hc}">${hv}</div><div class="tgt">${p.hotend.target>0?'→ '+p.hotend.target+'°':''}</div></div>
+        <div class="tchip"><div class="lbl">Bed</div><div class="val ${bc}">${bv}</div><div class="tgt">${p.bed.target>0?'→ '+p.bed.target+'°':''}</div></div>
+      </div>
+      <div>
+        <div class="prog-row"><span>${p.isPrinting?(p.currentFile||'Printing…'):p.connected?'Ready':'Not connected'}</span>${p.isPrinting?`<span>${p.progress}%</span>`:''}</div>
+        <div class="ptrack"><div class="pfill" style="width:${p.progress}%"></div></div>
+      </div>
+      <div class="card-acts">
+        ${p.connected
+          ? `<button class="btn-primary btn-sm" onclick="openManage('${p.id}')">Manage</button>
+             ${p.isPrinting&&!p.isPaused?`<button class="btn-secondary btn-sm" onclick="event.stopPropagation();pausePrint(printers.get('${p.id}'))">⏸</button>`:''}
+             ${p.isPaused?`<button class="btn-secondary btn-sm" onclick="event.stopPropagation();resumePrint(printers.get('${p.id}'))">▶</button>`:''}
+             ${p.isPrinting?`<button class="btn-danger btn-sm" onclick="event.stopPropagation();cancelPrint(printers.get('${p.id}'))">✕</button>`:''}
+             <button class="btn-danger btn-sm" onclick="rmP('${p.id}')">Remove</button>`
+          : `<button class="btn-primary btn-sm" onclick="recon('${p.id}')">Reconnect</button>
+             <button class="btn-danger btn-sm" onclick="rmP('${p.id}')">Remove</button>`}
+      </div>
+    </div>`;
+  return el;
 }
 
-function uid() { return Date.now() + '-' + Math.random().toString(36).slice(2); }
+function rmP(id) {
+  if (!confirm('Remove this printer?')) return;
+  const p = printers.get(id); if (p) discP(p);
+  printers.delete(id);
+  document.getElementById('card-' + id)?.remove();
+  if (managedId === id) closeManage();
+  save();
+}
+async function recon(id) {
+  const p = printers.get(id); if (!p) return;
+  try { await connectP(p); save(); } catch (e) { toast('Reconnect failed: ' + e.message, 'error'); }
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────────
+function plog(p, s, t) {
+  p.logs.push({ s, t });
+  if (p.logs.length > 500) p.logs.shift();
+  if (managedId === p.id) {
+    const con = document.getElementById('pcon');
+    const d = document.createElement('div'); d.className = 'cl ' + (t||'');
+    d.textContent = ({sent:'→ ',info:'◉ ',err:'✗ '}[t]||'← ') + s;
+    con.appendChild(d); con.scrollTop = con.scrollHeight;
+    while (con.children.length > 300) con.removeChild(con.firstChild);
+  }
+}
+
+// ── Persistence ────────────────────────────────────────────────────────────────
+const LS = 'printara_v3';
+function save() {
+  localStorage.setItem(LS, JSON.stringify([...printers.values()].map(p => ({ id:p.id, name:p.name, type:p.type, ip:p.ip, apiKey:p.apiKey, pin:p.pin, baudRate:p.baudRate }))));
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LS) || '[]');
+    for (const o of d) {
+      if (o.type === 'usb') continue; // USB needs user gesture
+      const p = mkP(o); printers.set(p.id, p); renderCard(p);
+      connectP(p).catch(e => plog(p, 'Auto-connect: ' + e.message, 'err'));
+    }
+  } catch (_) {}
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function ft(url, opts, ms) { const c = new AbortController(); setTimeout(() => c.abort(), ms); return fetch(url, { ...opts, signal: c.signal }); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function toast(msg, type='info') {
+  const el = document.createElement('div'); el.className = 'toast ' + type; el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 4000);
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+document.getElementById('pcin').addEventListener('keydown', e => { if (e.key==='Enter') pSendCon(); });
+document.getElementById('add-name').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('add-ip')?.focus(); });
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+setAT('usb');
+load();
 </script>
 </body>
 </html>
