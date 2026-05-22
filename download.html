@@ -570,7 +570,7 @@
 <section class="hero">
   <div class="hero-badge">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-    Free Desktop App · v1.0.0
+    Free Desktop App · <span id="ver-badge">latest</span>
   </div>
   <h1>Your 3D printer,<br /><span>on autopilot.</span></h1>
   <p>Queue up G-code files, connect any WiFi printer, and let Printara automatically start the next job — runs locally so your printer connects instantly, no permissions needed.</p>
@@ -724,9 +724,20 @@
 </div>
 
 <p class="version-note">
-  Free &amp; open source ·
-  <a href="https://github.com/shanevandekrol-dotcom/printara">Source on GitHub</a>
+  <span id="ver-note">Always up to date</span> · Free &amp; open source ·
+  <a href="https://github.com/shanevandekrol-dotcom/printara/releases">All releases</a> ·
+  <a href="https://github.com/shanevandekrol-dotcom/printara">GitHub</a>
 </p>
+<script>
+  fetch('https://api.github.com/repos/shanevandekrol-dotcom/printara/releases/latest')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.name) return;
+      document.getElementById('ver-badge').textContent = d.name.replace('Printara ', '');
+      document.getElementById('ver-note').textContent  = 'Latest: ' + d.name + ' · published ' + new Date(d.published_at).toLocaleDateString();
+    })
+    .catch(() => {});
+</script>
 
 <!-- ── Features ──────────────────────────────────────────────────────────────── -->
 <section class="features">
