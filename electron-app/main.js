@@ -2,9 +2,71 @@ const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
+const mqtt = require('mqtt');
 
 let mainWindow = null;
 let activePort = null;
+
+// ── Bambu Lab MQTT (native TLS, mqtts://ip:8883) ───────────────────────────────
+// Map of printerId → mqtt.Client so multiple printers work independently.
+const mqttClients = new Map();
+
+ipcMain.handle('mqtt:connect', (_ev, printerId, ip, pin) => {
+  return new Promise((resolve, reject) => {
+    // Clean up any existing client for this printer
+    if (mqttClients.has(printerId)) {
+      try { mqttClients.get(printerId).end(true); } catch (_) {}
+      mqttClients.delete(printerId);
+    }
+
+    const client = mqtt.connect(`mqtts://${ip}:8883`, {
+      clientId: 'printara_' + Math.random().toString(36).slice(2, 10),
+      username: 'bblp',
+      password: pin,
+      rejectUnauthorized: false, // Bambu uses a self-signed cert
+      connectTimeout: 8000,
+      reconnectPeriod: 0,
+      clean: true,
+    });
+
+    let settled = false;
+
+    client.on('connect', () => {
+      client.subscribe('device/+/report', () => {
+        if (!settled) { settled = true; mqttClients.set(printerId, client); resolve({ ok: true }); }
+      });
+    });
+
+    client.on('message', (topic, payload) => {
+      if (mainWindow) mainWindow.webContents.send('mqtt:message', { printerId, topic, payload: payload.toString() });
+    });
+
+    client.on('error', err => {
+      if (!settled) { settled = true; reject(err); }
+      else if (mainWindow) mainWindow.webContents.send('mqtt:error', { printerId, message: err.message });
+    });
+
+    client.on('close', () => {
+      if (!settled) { settled = true; reject(new Error('Connection closed')); }
+      else if (mainWindow) mainWindow.webContents.send('mqtt:closed', { printerId });
+    });
+
+    setTimeout(() => {
+      if (!settled) { settled = true; client.end(true); reject(new Error('Connection timed out')); }
+    }, 9000);
+  });
+});
+
+ipcMain.handle('mqtt:publish', (_ev, printerId, topic, payload) => {
+  const client = mqttClients.get(printerId);
+  if (!client) throw new Error('No MQTT client for printer ' + printerId);
+  return new Promise((res, rej) => client.publish(topic, payload, err => err ? rej(err) : res()));
+});
+
+ipcMain.handle('mqtt:disconnect', (_ev, printerId) => {
+  const client = mqttClients.get(printerId);
+  if (client) { try { client.end(true); } catch (_) {} mqttClients.delete(printerId); }
+});
 
 function getQueuePath() {
   if (app.isPackaged) return path.join(process.resourcesPath, 'queue.html');

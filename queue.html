@@ -570,11 +570,41 @@ async function pollStatus(p) {
 function discHttp(p) { stopPoll(p); p.connected = false; p.status = 'idle'; p.isPrinting = false; renderCard(p); }
 
 // ── Bambu Lab ──────────────────────────────────────────────────────────────────
+// Electron: native TLS MQTT via mqttBridge (mqtts://ip:8883, rejectUnauthorized:false)
+// Browser:  WebSocket MQTT fallback (ws://ip:2883)
 async function connectBambu(p) {
   if (!p.ip)  throw new Error('Enter the printer IP');
   if (!p.pin) throw new Error('Enter the access code');
+  const ip = p.ip.replace(/^https?:\/\//, '');
+
+  if (window.mqttBridge) {
+    return new Promise((res, rej) => {
+      let ok = false;
+      window.mqttBridge.onMessage(({ printerId, topic, payload }) => {
+        if (printerId !== p.id) return;
+        if (!p.bambuSerial) {
+          const pts = topic.split('/');
+          if (pts.length === 3) { p.bambuSerial = pts[1]; bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } }); }
+        }
+        if (!ok) { ok = true; p.connected = true; p.connecting = false; p.status = 'idle'; renderCard(p); res(); }
+        try { handleBambu(p, JSON.parse(payload)); } catch (_) {}
+      });
+      window.mqttBridge.onError(({ printerId, message }) => {
+        if (printerId !== p.id) return;
+        if (!ok) { ok = true; rej(new Error(message)); }
+      });
+      window.mqttBridge.onClosed(({ printerId }) => {
+        if (printerId !== p.id) return;
+        if (!ok) { ok = true; rej(new Error('Connection closed')); }
+        else if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); }
+      });
+      window.mqttBridge.connect(p.id, ip, p.pin).catch(e => { if (!ok) { ok = true; rej(e); } });
+    });
+  }
+
+  // Browser fallback
   return new Promise((res, rej) => {
-    const ws = 'ws://' + p.ip.replace(/^https?:\/\//, '') + ':2883';
+    const ws = 'ws://' + ip + ':2883';
     p.mqttClient = mqtt.connect(ws, { clientId: 'printara_' + uid().slice(0,8), username: 'bblp', password: p.pin, connectTimeout: 8000, reconnectPeriod: 0, clean: true });
     let ok = false;
     p.mqttClient.on('connect', () => p.mqttClient.subscribe('device/+/report'));
@@ -592,7 +622,12 @@ async function connectBambu(p) {
   });
 }
 
-function bPub(p, payload) { if (p.mqttClient && p.bambuSerial) p.mqttClient.publish('device/' + p.bambuSerial + '/request', JSON.stringify(payload)); }
+function bPub(p, payload) {
+  const topic = 'device/' + p.bambuSerial + '/request';
+  const msg   = JSON.stringify(payload);
+  if (window.mqttBridge && p.bambuSerial) { window.mqttBridge.publish(p.id, topic, msg); return; }
+  if (p.mqttClient && p.bambuSerial) p.mqttClient.publish(topic, msg);
+}
 
 function handleBambu(p, data) {
   const m = data.print; if (!m) return;
@@ -610,7 +645,11 @@ function handleBambu(p, data) {
   if (st !== p.bambuLast) { plog(p, 'Bambu: ' + st, 'info'); p.bambuLast = st; }
 }
 
-function discBambu(p) { p.mqttClient?.end(true); p.mqttClient = null; p.bambuSerial = ''; p.bambuLast = ''; p.connected = false; p.status = 'idle'; renderCard(p); }
+function discBambu(p) {
+  if (window.mqttBridge) window.mqttBridge.disconnect(p.id).catch(() => {});
+  p.mqttClient?.end(true); p.mqttClient = null;
+  p.bambuSerial = ''; p.bambuLast = ''; p.connected = false; p.status = 'idle'; renderCard(p);
+}
 
 // ── Generic disconnect ─────────────────────────────────────────────────────────
 function discP(p) {

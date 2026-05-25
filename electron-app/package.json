@@ -10,11 +10,19 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish"
   },
-  "keywords": ["3d-printing", "gcode", "octoprint", "moonraker", "klipper", "bambu"],
+  "keywords": [
+    "3d-printing",
+    "gcode",
+    "octoprint",
+    "moonraker",
+    "klipper",
+    "bambu"
+  ],
   "author": "Printara",
   "license": "MIT",
   "dependencies": {
     "@serialport/parser-readline": "^12.0.0",
+    "mqtt": "^5.15.1",
     "serialport": "^12.0.0"
   },
   "devDependencies": {

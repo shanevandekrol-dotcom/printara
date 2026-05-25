@@ -9,3 +9,13 @@ contextBridge.exposeInMainWorld('serialBridge', {
   onError:    (cb) => ipcRenderer.on('serial:error',  (_e, e) => cb(e)),
   onClosed:   (cb) => ipcRenderer.on('serial:closed', ()      => cb()),
 });
+
+// Native MQTT bridge — uses mqtts://ip:8883 with TLS (Bambu Lab local protocol)
+contextBridge.exposeInMainWorld('mqttBridge', {
+  connect:    (id, ip, pin) => ipcRenderer.invoke('mqtt:connect',    id, ip, pin),
+  publish:    (id, topic, payload) => ipcRenderer.invoke('mqtt:publish', id, topic, payload),
+  disconnect: (id)          => ipcRenderer.invoke('mqtt:disconnect', id),
+  onMessage:  (cb) => ipcRenderer.on('mqtt:message', (_e, d) => cb(d)),
+  onError:    (cb) => ipcRenderer.on('mqtt:error',   (_e, d) => cb(d)),
+  onClosed:   (cb) => ipcRenderer.on('mqtt:closed',  (_e, d) => cb(d)),
+});
