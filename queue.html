@@ -723,12 +723,17 @@ async function startPrint(p, item) {
   if (p.type === 'bambu') {
     const ext = item.name.split('.').pop().toLowerCase();
     if (ext === '3mf') {
-      toast('Bambu .3mf files must be sent from Bambu Studio. For direct printing, use a .gcode file.', 'error');
+      toast('Bambu .3mf files must be sent from Bambu Studio. Use a .gcode file for direct printing.', 'error');
       item.status = 'queued'; p.isPrinting = false; p.status = 'idle'; renderCard(p); renderPQ(); updatePanelProg(p);
       return;
     }
-    // Stream .gcode line by line via MQTT gcode_line
-    startBambuGcode(p, item);
+    if (window.ftpBridge) {
+      // Electron: FTP upload to printer then trigger via MQTT (correct Bambu local API flow)
+      startBambuFtp(p, item);
+    } else {
+      // Browser fallback: stream gcode line-by-line via MQTT (no FTP available)
+      startBambuGcode(p, item);
+    }
     return;
   }
   const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
@@ -743,6 +748,44 @@ async function startPrint(p, item) {
     await fetch(p.baseUrl + '/printer/print/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: item.name }) });
   }
   item.status = 'printing'; renderPQ();
+}
+
+async function startBambuFtp(p, item) {
+  try {
+    item.status = 'uploading'; renderPQ();
+    toast('Uploading to printer via FTP…', 'info');
+
+    // Read file → ArrayBuffer → send to main process for FTP upload
+    const buf = await item.file.arrayBuffer();
+    const ip  = p.ip.replace(/^https?:\/\//, '');
+    await window.ftpBridge.upload(ip, p.pin, item.name, buf);
+
+    toast('Upload done — starting print', 'success');
+    item.status = 'printing'; renderPQ();
+
+    // Build AMS mapping from stored filament colors (slot 0 + slot 1)
+    const amsMapping = p.filamentColors.slice(0, 2).map((_, i) => ({ ams: 0, slot: i }));
+
+    bPub(p, {
+      print: {
+        sequence_id: '0',
+        command: 'project_file',
+        param: 'Metadata/plate_1.gcode',
+        subtask_name: item.name.replace(/\.[^.]+$/, ''),
+        url: `ftp://${ip}/model/${item.name}`,
+        timelapse: false,
+        bed_leveling: true,
+        flow_cali: false,
+        vibration_cali: false,
+        layer_inspect: false,
+        ams_mapping: amsMapping,
+      },
+    });
+  } catch (e) {
+    toast('FTP upload failed: ' + e.message, 'error');
+    item.status = 'error'; p.isPrinting = false; p.status = 'idle';
+    renderCard(p); renderPQ(); updatePanelProg(p);
+  }
 }
 
 async function startBambuGcode(p, item) {

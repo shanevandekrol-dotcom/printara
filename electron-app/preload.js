@@ -19,3 +19,8 @@ contextBridge.exposeInMainWorld('mqttBridge', {
   onError:    (cb) => ipcRenderer.on('mqtt:error',   (_e, d) => cb(d)),
   onClosed:   (cb) => ipcRenderer.on('mqtt:closed',  (_e, d) => cb(d)),
 });
+
+// FTP bridge — uploads files to the Bambu printer (implicit TLS, port 990)
+contextBridge.exposeInMainWorld('ftpBridge', {
+  upload: (ip, pin, filename, buffer) => ipcRenderer.invoke('ftp:upload', ip, pin, filename, buffer),
+});

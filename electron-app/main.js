@@ -1,8 +1,11 @@
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
+const os   = require('os');
+const fs   = require('fs');
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const mqtt = require('mqtt');
+const ftp  = require('basic-ftp');
 
 let mainWindow = null;
 let activePort = null;
@@ -66,6 +69,30 @@ ipcMain.handle('mqtt:publish', (_ev, printerId, topic, payload) => {
 ipcMain.handle('mqtt:disconnect', (_ev, printerId) => {
   const client = mqttClients.get(printerId);
   if (client) { try { client.end(true); } catch (_) {} mqttClients.delete(printerId); }
+});
+
+// ── Bambu Lab FTP upload (implicit TLS, port 990) ──────────────────────────────
+// Writes the file to a temp path, FTPs to /model/ on the printer, then cleans up.
+ipcMain.handle('ftp:upload', async (_ev, ip, pin, filename, bufferData) => {
+  const tmpPath = path.join(os.tmpdir(), 'printara_' + filename);
+  fs.writeFileSync(tmpPath, Buffer.from(bufferData));
+
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: ip, port: 990,
+      user: 'bblp', password: pin,
+      secure: 'implicit',
+      secureOptions: { rejectUnauthorized: false },
+    });
+    await client.ensureDir('/model');
+    await client.uploadFrom(tmpPath, filename);
+    return { ok: true };
+  } finally {
+    client.close();
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+  }
 });
 
 function getQueuePath() {
