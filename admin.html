@@ -109,6 +109,9 @@
       <button class="sidebar-item" id="sbi-clockin" onclick="switchTab('clockin')">
         <span class="sidebar-item-icon">⏱️</span> Hours
       </button>
+      <button class="sidebar-item" id="sbi-support" onclick="switchTab('support')">
+        <span class="sidebar-item-icon">💬</span> Support <span id="sbi-support-badge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px;margin-left:4px;"></span>
+      </button>
       <button class="sidebar-item" id="sbi-settings" onclick="switchTab('settings')">
         <span class="sidebar-item-icon">⚙️</span> Settings
       </button>
@@ -127,6 +130,9 @@
     </button>
     <button class="admin-bottom-nav-item" id="mni-clockin" onclick="switchTab('clockin')">
       <span class="admin-bottom-nav-icon">⏱️</span>Hours
+    </button>
+    <button class="admin-bottom-nav-item" id="mni-support" onclick="switchTab('support')">
+      <span class="admin-bottom-nav-icon">💬</span>Support
     </button>
     <button class="admin-bottom-nav-item" id="mni-settings" onclick="switchTab('settings')">
       <span class="admin-bottom-nav-icon">⚙️</span>Settings
@@ -147,6 +153,7 @@
       <button class="tab-btn" onclick="switchTab('map')">🗺️ Map Generator</button>
       <button class="tab-btn" onclick="switchTab('users')">Accounts <span id="usersBadge"></span></button>
       <button class="tab-btn" onclick="switchTab('clockin')">⏱️ Hours</button>
+      <button class="tab-btn" onclick="switchTab('support')">💬 Support <span id="supportTabBadge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:0 6px;margin-left:2px;"></span></button>
       <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
     </div>
 
@@ -524,6 +531,46 @@
 
     <!-- 3D STUDIO TAB -->
 
+    <!-- SUPPORT TAB -->
+    <div class="tab-panel" id="tab-support">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div>
+          <h3 style="margin-bottom:4px;">Support Tickets</h3>
+          <p style="color:var(--text2);font-size:14px;">Chat conversations from the support widget on your site.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="supportFilter" onchange="loadSupportTickets()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+            <option value="all">All tickets</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+          </select>
+          <button class="tab-btn" onclick="loadSupportTickets()" style="padding:8px 14px;">↺ Refresh</button>
+        </div>
+      </div>
+
+      <div id="supportList"></div>
+      <div id="supportEmpty" style="display:none;" class="empty-state">
+        <div class="empty-icon">💬</div>
+        <h3>No support tickets yet</h3>
+        <p>When visitors use the chat widget to report problems, they'll appear here.</p>
+      </div>
+
+      <!-- Ticket detail drawer -->
+      <div id="supportDrawer" style="display:none;margin-top:24px;border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface2);border-bottom:1px solid var(--border);">
+          <div>
+            <span id="drawerName" style="font-weight:700;font-size:15px;"></span>
+            <span id="drawerEmail" style="font-size:13px;color:var(--text3);margin-left:8px;"></span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="drawerStatus" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;"></span>
+            <button id="drawerResolveBtn" class="btn-primary" style="padding:6px 14px;font-size:13px;" onclick="resolveTicket()">Mark Resolved</button>
+            <button onclick="closeSupportDrawer()" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;line-height:1;">✕</button>
+          </div>
+        </div>
+        <div id="drawerMessages" style="padding:16px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto;"></div>
+      </div>
+    </div>
 
   </div>
 
@@ -1910,6 +1957,142 @@
     }
     // Call after unlock
     document.addEventListener('profab-unlocked', syncMobileBadges);
+
+    // ===== SUPPORT TICKETS ====================================================
+    let _supportSessions = [];
+    let _activeSessionId = null;
+
+    async function loadSupportTickets() {
+      const filter = document.getElementById('supportFilter')?.value || 'all';
+      const list = document.getElementById('supportList');
+      const empty = document.getElementById('supportEmpty');
+      list.innerHTML = '<p style="color:var(--text3);font-size:14px;">Loading…</p>';
+      empty.style.display = 'none';
+
+      try {
+        const res = await fetch('/.netlify/functions/support-chat');
+        const sessions = await res.json();
+        _supportSessions = Array.isArray(sessions) ? sessions : [];
+
+        const filtered = filter === 'all' ? _supportSessions
+          : _supportSessions.filter(s => s.status === filter);
+
+        if (!filtered.length) {
+          list.innerHTML = '';
+          empty.style.display = 'flex';
+          updateSupportBadge();
+          return;
+        }
+
+        list.innerHTML = filtered.map(s => {
+          const isOpen = s.status === 'open';
+          const date = new Date(s.started_at).toLocaleString();
+          const name = s.name || 'Anonymous';
+          const email = s.email ? `<span style="color:var(--text3);font-size:12px;">${s.email}</span>` : '';
+          const badge = isOpen
+            ? `<span style="background:rgba(224,32,32,.2);color:var(--accent);border:1px solid rgba(224,32,32,.3);border-radius:10px;font-size:11px;font-weight:700;padding:2px 8px;">Open</span>`
+            : `<span style="background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25);border-radius:10px;font-size:11px;font-weight:700;padding:2px 8px;">Resolved</span>`;
+          const preview = (s.first_message || '').slice(0, 90) + ((s.first_message || '').length > 90 ? '…' : '');
+          return `<div onclick="openSupportDrawer('${s.session_id}')"
+            style="border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:10px;cursor:pointer;background:var(--surface2);transition:border-color .15s;"
+            onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <span style="font-weight:700;font-size:15px;">${name}</span>
+              ${email}
+              ${badge}
+              <span style="margin-left:auto;font-size:12px;color:var(--text3);">${date}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text2);">${preview || '(no message)'}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:4px;">${s.message_count} message(s)</div>
+          </div>`;
+        }).join('');
+
+        updateSupportBadge();
+      } catch (e) {
+        list.innerHTML = `<p style="color:var(--accent);font-size:14px;">Error loading tickets: ${e.message}</p>`;
+      }
+    }
+
+    function updateSupportBadge() {
+      const openCount = _supportSessions.filter(s => s.status === 'open').length;
+      const badge1 = document.getElementById('supportTabBadge');
+      const badge2 = document.getElementById('sbi-support-badge');
+      [badge1, badge2].forEach(b => {
+        if (!b) return;
+        b.textContent = openCount || '';
+        b.style.display = openCount ? 'inline-flex' : 'none';
+      });
+    }
+
+    async function openSupportDrawer(sessionId) {
+      _activeSessionId = sessionId;
+      const session = _supportSessions.find(s => s.session_id === sessionId);
+
+      document.getElementById('drawerName').textContent = session?.name || 'Anonymous';
+      document.getElementById('drawerEmail').textContent = session?.email || '';
+
+      const statusEl = document.getElementById('drawerStatus');
+      const resolveBtn = document.getElementById('drawerResolveBtn');
+      const isOpen = session?.status === 'open';
+      statusEl.textContent = isOpen ? 'Open' : 'Resolved';
+      statusEl.style.background = isOpen ? 'rgba(224,32,32,.2)' : 'rgba(34,197,94,.12)';
+      statusEl.style.color = isOpen ? 'var(--accent)' : '#22c55e';
+      resolveBtn.style.display = isOpen ? 'block' : 'none';
+
+      const drawer = document.getElementById('supportDrawer');
+      drawer.style.display = 'block';
+      document.getElementById('drawerMessages').innerHTML = '<p style="color:var(--text3);font-size:13px;">Loading…</p>';
+
+      try {
+        const res = await fetch(`/.netlify/functions/support-chat?session=${sessionId}`);
+        const msgs = await res.json();
+        document.getElementById('drawerMessages').innerHTML = msgs.map(m => {
+          const isBot = m.sender === 'bot';
+          const time = new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+          return `<div style="display:flex;flex-direction:column;align-items:${isBot ? 'flex-start' : 'flex-end'};">
+            <div style="max-width:80%;background:${isBot ? 'var(--surface2)' : 'var(--accent)'};color:${isBot ? 'var(--text)' : '#fff'};
+              padding:9px 13px;border-radius:${isBot ? '14px 14px 14px 4px' : '14px 14px 4px 14px'};font-size:13.5px;line-height:1.45;">
+              ${m.message}
+            </div>
+            <span style="font-size:11px;color:var(--text3);margin-top:3px;">${isBot ? 'Support Bot' : m.name} · ${time}</span>
+          </div>`;
+        }).join('');
+      } catch {
+        document.getElementById('drawerMessages').innerHTML = '<p style="color:var(--accent);font-size:13px;">Error loading messages.</p>';
+      }
+    }
+
+    function closeSupportDrawer() {
+      document.getElementById('supportDrawer').style.display = 'none';
+      _activeSessionId = null;
+    }
+
+    async function resolveTicket() {
+      if (!_activeSessionId) return;
+      try {
+        await fetch('/.netlify/functions/support-chat', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: _activeSessionId, status: 'resolved' }),
+        });
+        closeSupportDrawer();
+        loadSupportTickets();
+      } catch (e) {
+        alert('Failed to update ticket: ' + e.message);
+      }
+    }
+
+    // Load tickets when support tab is opened
+    document.addEventListener('profab-unlocked', () => {
+      // Patch switchTab to load support tickets when navigating there
+      const origSwitch = window.switchTab;
+      if (origSwitch) {
+        window.switchTab = function(tab) {
+          origSwitch(tab);
+          if (tab === 'support') loadSupportTickets();
+        };
+      }
+    });
 
   </script>
 </body>

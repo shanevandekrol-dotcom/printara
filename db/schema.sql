@@ -89,3 +89,15 @@ CREATE TABLE IF NOT EXISTS clock_active (
   username    VARCHAR(128)  NOT NULL DEFAULT '',
   start_time  DATETIME      NOT NULL
 );
+
+-- ── Support tickets (chat-based problem reports) ──────────────────────────────
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id            VARCHAR(64)   NOT NULL PRIMARY KEY,
+  session_id    VARCHAR(64)   NOT NULL,              -- groups messages in one chat
+  sender        ENUM('user','bot') NOT NULL DEFAULT 'user',
+  name          VARCHAR(255)  NOT NULL DEFAULT 'Anonymous',
+  email         VARCHAR(255)  NOT NULL DEFAULT '',
+  message       TEXT          NOT NULL,
+  status        VARCHAR(32)   NOT NULL DEFAULT 'open', -- 'open' | 'resolved'
+  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
