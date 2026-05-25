@@ -135,6 +135,21 @@
     .toast.info    { border-color:rgba(0,153,255,.4);  color:var(--accent); }
     @keyframes slideIn { from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1} }
     ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+
+    /* filament colors */
+    .fil-dot { width:10px; height:10px; border-radius:50%; border:1px solid rgba(255,255,255,.2); flex-shrink:0; }
+    .ams-slots { display:flex; gap:8px; flex-wrap:wrap; }
+    .ams-slot { display:flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; }
+    .ams-slot label { font-size:11px; color:var(--text2); white-space:nowrap; }
+    .ams-slot input[type=color] { width:28px; height:28px; padding:1px; border:1px solid var(--border); border-radius:6px; background:none; cursor:pointer; }
+
+    /* printer selector */
+    #printer-select { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:12px; font-weight:700; padding:5px 8px; outline:none; max-width:140px; }
+    #printer-select:focus { border-color:var(--accent); }
+
+    /* qi remove btn */
+    .qi-rm { background:none; border:none; color:var(--text3); cursor:pointer; font-size:13px; padding:2px 4px; flex-shrink:0; line-height:1; }
+    .qi-rm:hover { color:var(--red); }
   </style>
 </head>
 <body>
@@ -216,7 +231,7 @@
 <!-- Manage Panel -->
 <div id="manage-panel" class="closed">
   <div class="ptopbar">
-    <h2 id="pt">Printer</h2>
+    <select id="printer-select" onchange="switchPrinter(this.value)"></select>
     <button class="btn-danger btn-sm" onclick="disconnectManaged()">Disconnect</button>
     <button class="btn-secondary btn-sm" onclick="closeManage()">✕</button>
   </div>
@@ -247,8 +262,15 @@
     <div>
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <div class="stitle" style="margin:0;flex:1">Queue</div>
+        <button class="btn-secondary btn-sm" onclick="pClearDone()" style="margin-right:4px">Clear done</button>
         <button class="btn-secondary btn-sm" onclick="pAddFiles()">+ Add</button>
         <button class="btn-primary btn-sm" id="p-start" disabled onclick="pStart()" style="margin-left:6px">▶ Start</button>
+      </div>
+      <!-- AMS color slots — shown only for Bambu printers -->
+      <div id="ams-section" style="display:none;margin-bottom:10px;">
+        <div class="stitle" style="margin-bottom:6px;">Filament / AMS Colors</div>
+        <div class="ams-slots" id="ams-slots"></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px;">Colors are tagged to files you add below and sent with each print job.</div>
       </div>
       <div id="pqueue"><div style="font-size:11px;color:var(--text3);text-align:center;padding:14px">No files queued</div></div>
     </div>
@@ -314,6 +336,7 @@ function mkP(o = {}) {
     serialPort: null, serialReader: null, serialWriter: null,
     usbBuf: '', usbLines: [], usbIdx: 0, usbWait: false,
     mqttClient: null, bambuSerial: '', bambuLast: '',
+    filamentColors: o.filamentColors || ['#00aaff', '#ff5500'],
     logs: [],
   };
 }
@@ -698,7 +721,14 @@ async function startPrint(p, item) {
     return;
   }
   if (p.type === 'bambu') {
-    bPub(p, { print: { sequence_id: '0', command: 'project_file', param: 'Metadata/plate_1.gcode', subtask_name: item.name.replace(/\.[^.]+$/, ''), url: 'ftp://' + p.ip + '/model/' + item.name, timelapse: false, bed_leveling: true, flow_cali: false, vibration_cali: false, layer_inspect: false, ams_mapping: [] } });
+    const ext = item.name.split('.').pop().toLowerCase();
+    if (ext === '3mf') {
+      toast('Bambu .3mf files must be sent from Bambu Studio. For direct printing, use a .gcode file.', 'error');
+      item.status = 'queued'; p.isPrinting = false; p.status = 'idle'; renderCard(p); renderPQ(); updatePanelProg(p);
+      return;
+    }
+    // Stream .gcode line by line via MQTT gcode_line
+    startBambuGcode(p, item);
     return;
   }
   const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
@@ -713,6 +743,30 @@ async function startPrint(p, item) {
     await fetch(p.baseUrl + '/printer/print/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: item.name }) });
   }
   item.status = 'printing'; renderPQ();
+}
+
+async function startBambuGcode(p, item) {
+  const text = await item.file.text();
+  const lines = text.split('\n');
+  p.usbLines = lines; p.usbIdx = 0;
+  let seq = 1;
+  async function pump() {
+    const BATCH = 5;
+    let sent = 0;
+    while (p.isPrinting && !p.isPaused && p.usbIdx < p.usbLines.length && sent < BATCH) {
+      let line = p.usbLines[p.usbIdx++];
+      const sc = line.indexOf(';'); if (sc > -1) line = line.slice(0, sc);
+      line = line.trim();
+      if (!line) continue;
+      bPub(p, { print: { sequence_id: String(seq++), command: 'gcode_line', param: line } });
+      sent++;
+      p.progress = Math.round(p.usbIdx / p.usbLines.length * 100);
+    }
+    renderCard(p); updatePanelProg(p);
+    if (p.usbIdx >= p.usbLines.length && p.isPrinting) { onDone(p); return; }
+    if (p.isPrinting) setTimeout(pump, p.isPaused ? 500 : 60);
+  }
+  pump();
 }
 
 async function pausePrint(p) {
@@ -753,7 +807,13 @@ async function cancelPrint(p) {
 function openManage(id) {
   managedId = id;
   const p = printers.get(id); if (!p) return;
-  document.getElementById('pt').textContent = p.name;
+
+  // Populate printer selector
+  const sel = document.getElementById('printer-select');
+  sel.innerHTML = [...printers.values()].map(pr =>
+    `<option value="${pr.id}"${pr.id === id ? ' selected' : ''}>${pr.name}</option>`
+  ).join('');
+
   document.getElementById('manage-panel').classList.remove('closed');
   const img = document.getElementById('pcam-img');
   const nc  = document.getElementById('pnc');
@@ -763,10 +823,32 @@ function openManage(id) {
   } else {
     img.classList.add('hidden'); nc.classList.remove('hidden'); live.classList.add('hidden');
   }
+
+  // AMS section only for Bambu
+  const amsSection = document.getElementById('ams-section');
+  if (p.type === 'bambu') { amsSection.style.display = ''; renderAmsSlots(p); } else { amsSection.style.display = 'none'; }
+
   renderPQ(); updatePanelProg(p); updatePanelTemps(p);
   const con = document.getElementById('pcon'); con.innerHTML = '';
   for (const m of p.logs) { const d = document.createElement('div'); d.className = 'cl ' + (m.t||''); d.textContent = ({sent:'→ ',info:'◉ ',err:'✗ '}[m.t]||'← ') + m.s; con.appendChild(d); }
   con.scrollTop = con.scrollHeight;
+}
+
+function switchPrinter(id) { openManage(id); }
+
+function renderAmsSlots(p) {
+  const container = document.getElementById('ams-slots');
+  container.innerHTML = ['Color 1', 'Color 2'].map((label, i) => `
+    <div class="ams-slot">
+      <input type="color" value="${p.filamentColors[i] || '#888888'}" onchange="setFilamentColor('${p.id}',${i},this.value)" title="${label}" />
+      <label>${label}</label>
+    </div>`).join('');
+}
+
+function setFilamentColor(pid, idx, color) {
+  const p = printers.get(pid); if (!p) return;
+  p.filamentColors[idx] = color;
+  save();
 }
 function closeManage() { managedId = null; document.getElementById('manage-panel').classList.add('closed'); }
 function disconnectManaged() { const p = printers.get(managedId); if (p) discP(p); closeManage(); }
@@ -801,10 +883,19 @@ function renderPQ() {
   for (const item of p.queue) {
     const d = document.createElement('div');
     d.className = 'qi' + (item === p.currentItem ? ' active' : '');
-    d.innerHTML = `<div class="qname" title="${item.name}">${item.name}</div><div class="qbadge badge-${item.status}">${item.status}</div>${item.status==='queued'?`<button onclick="rmQI('${p.id}','${item.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px">✕</button>`:''}`;
+    const canRm = item !== p.currentItem; // can't remove what's actively printing
+    const colorDot = item.color ? `<span class="fil-dot" style="background:${item.color};margin-right:2px" title="Filament 1"></span>` : '';
+    const colorDot2 = item.color2 ? `<span class="fil-dot" style="background:${item.color2}" title="Filament 2"></span>` : '';
+    d.innerHTML = `${colorDot}${colorDot2}<div class="qname" title="${item.name}">${item.name}</div><div class="qbadge badge-${item.status}">${item.status}</div>${canRm?`<button class="qi-rm" onclick="rmQI('${p.id}','${item.id}')">✕</button>`:''}`;
     el.appendChild(d);
   }
   document.getElementById('p-start').disabled = !p.connected || p.isPrinting || !p.queue.some(i=>i.status==='queued');
+}
+
+function pClearDone() {
+  const p = printers.get(managedId); if (!p) return;
+  p.queue = p.queue.filter(i => i === p.currentItem || i.status === 'queued' || i.status === 'printing' || i.status === 'uploading');
+  renderPQ();
 }
 
 function rmQI(pid, iid) { const p = printers.get(pid); if (p) { p.queue = p.queue.filter(i=>i.id!==iid); renderPQ(); } }
@@ -812,7 +903,12 @@ function rmQI(pid, iid) { const p = printers.get(pid); if (p) { p.queue = p.queu
 function pAddFiles() {
   const p = printers.get(managedId); if (!p) return;
   const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.gcode,.g,.gc,.gco,.ngc,.3mf';
-  inp.onchange = () => { for (const f of inp.files) p.queue.push({ id: uid(), name: f.name, file: f, status: 'queued' }); renderPQ(); };
+  inp.onchange = () => {
+    const c1 = p.filamentColors[0] || '#00aaff';
+    const c2 = p.filamentColors[1] || null;
+    for (const f of inp.files) p.queue.push({ id: uid(), name: f.name, file: f, status: 'queued', color: c1, color2: p.type === 'bambu' ? c2 : null });
+    renderPQ();
+  };
   inp.click();
 }
 function pStart()   { const p = printers.get(managedId); if (!p || p.isPrinting) return; const n = p.queue.find(i=>i.status==='queued'); if (n) startPrint(p, n); }
@@ -903,7 +999,7 @@ function plog(p, s, t) {
 // ── Persistence ────────────────────────────────────────────────────────────────
 const LS = 'printara_v3';
 function save() {
-  localStorage.setItem(LS, JSON.stringify([...printers.values()].map(p => ({ id:p.id, name:p.name, type:p.type, ip:p.ip, apiKey:p.apiKey, pin:p.pin, baudRate:p.baudRate }))));
+  localStorage.setItem(LS, JSON.stringify([...printers.values()].map(p => ({ id:p.id, name:p.name, type:p.type, ip:p.ip, apiKey:p.apiKey, pin:p.pin, baudRate:p.baudRate, filamentColors:p.filamentColors }))));
 }
 function load() {
   try {
