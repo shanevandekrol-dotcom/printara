@@ -138,10 +138,16 @@
 
     /* filament colors */
     .fil-dot { width:10px; height:10px; border-radius:50%; border:1px solid rgba(255,255,255,.2); flex-shrink:0; }
-    .ams-slots { display:flex; gap:8px; flex-wrap:wrap; }
-    .ams-slot { display:flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; }
-    .ams-slot label { font-size:11px; color:var(--text2); white-space:nowrap; }
-    .ams-slot input[type=color] { width:28px; height:28px; padding:1px; border:1px solid var(--border); border-radius:6px; background:none; cursor:pointer; }
+    .ams-swatches { display:flex; flex-wrap:wrap; gap:6px; }
+    .ams-swatch { width:28px; height:28px; border-radius:50%; border:2px solid transparent; cursor:pointer; position:relative; transition:transform .1s, border-color .1s; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:0; outline:none; }
+    .ams-swatch:hover { transform:scale(1.18); border-color:rgba(255,255,255,.45); }
+    .ams-swatch.selected { border-color:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.6); }
+    .ams-swatch-num { font-size:10px; font-weight:800; color:#fff; text-shadow:0 0 4px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.9); pointer-events:none; line-height:1; }
+    .ams-swatch-custom { background:var(--surface3); border:2px dashed var(--border); font-size:15px; color:var(--text3); overflow:hidden; }
+    .ams-swatch-custom:hover { border-color:var(--accent); color:var(--accent); transform:scale(1.1); }
+    .ams-sel-list { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .ams-sel-chip { display:flex; align-items:center; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 8px 3px 6px; font-size:11px; color:var(--text2); }
+    .ams-sel-dot { width:10px; height:10px; border-radius:50%; border:1px solid rgba(255,255,255,.2); flex-shrink:0; }
 
     /* printer selector */
     #printer-select { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:12px; font-weight:700; padding:5px 8px; outline:none; max-width:140px; }
@@ -315,6 +321,11 @@
 const printers = new Map();
 let managedId = null;
 let addType = 'usb';
+
+// True when served from server.js over local HTTP — enables MQTT proxy + FTP proxy
+const HAS_LOCAL_SERVER = window.location.protocol === 'http:' &&
+                         !!window.location.port &&
+                         window.location.port !== '80';
 
 // ── Printer factory ────────────────────────────────────────────────────────────
 function mkP(o = {}) {
@@ -601,46 +612,104 @@ async function connectBambu(p) {
   const ip = p.ip.replace(/^https?:\/\//, '');
 
   if (window.mqttBridge) {
-    return new Promise((res, rej) => {
-      let ok = false;
-      window.mqttBridge.onMessage(({ printerId, topic, payload }) => {
-        if (printerId !== p.id) return;
-        if (!p.bambuSerial) {
-          const pts = topic.split('/');
-          if (pts.length === 3) { p.bambuSerial = pts[1]; bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } }); }
+    // Register persistent event handlers before connecting
+    window.mqttBridge.onMessage(({ printerId, topic, payload }) => {
+      if (printerId !== p.id) return;
+      if (!p.bambuSerial) {
+        const pts = topic.split('/');
+        if (pts.length === 3) {
+          p.bambuSerial = pts[1];
+          // Now that we know the serial, request a full status push
+          bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } });
         }
-        if (!ok) { ok = true; p.connected = true; p.connecting = false; p.status = 'idle'; renderCard(p); res(); }
-        try { handleBambu(p, JSON.parse(payload)); } catch (_) {}
-      });
-      window.mqttBridge.onError(({ printerId, message }) => {
-        if (printerId !== p.id) return;
-        if (!ok) { ok = true; rej(new Error(message)); }
-      });
-      window.mqttBridge.onClosed(({ printerId }) => {
-        if (printerId !== p.id) return;
-        if (!ok) { ok = true; rej(new Error('Connection closed')); }
-        else if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); }
-      });
-      window.mqttBridge.connect(p.id, ip, p.pin).catch(e => { if (!ok) { ok = true; rej(e); } });
+      }
+      try { handleBambu(p, JSON.parse(payload)); } catch (_) {}
     });
+    window.mqttBridge.onError(({ printerId, message }) => {
+      if (printerId !== p.id) return;
+      plog(p, 'MQTT error: ' + message, 'err');
+      if (p.connected) { p.connected = false; p.status = 'error'; renderCard(p); }
+    });
+    window.mqttBridge.onClosed(({ printerId }) => {
+      if (printerId !== p.id) return;
+      if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); }
+    });
+
+    // connect() resolves once the MQTT broker accepts the connection and the
+    // subscription to device/+/report is confirmed — no need to wait for a message
+    await window.mqttBridge.connect(p.id, ip, p.pin);
+    p.connected = true; p.connecting = false; p.status = 'idle';
+    renderCard(p);
+    plog(p, 'Connected via MQTT — waiting for status…', 'info');
+    return;
   }
 
-  // Browser fallback
+  // Browser: use server.js MQTT proxy (when running locally) or direct WebSocket MQTT
+  if (HAS_LOCAL_SERVER) return connectBambuProxy(p, ip);
+  return connectBambuWs(p, ip);
+}
+
+// MQTT via server.js WebSocket proxy (works on any device on the local network)
+function connectBambuProxy(p, ip) {
   return new Promise((res, rej) => {
-    const ws = 'ws://' + ip + ':2883';
-    p.mqttClient = mqtt.connect(ws, { clientId: 'printara_' + uid().slice(0,8), username: 'bblp', password: p.pin, connectTimeout: 8000, reconnectPeriod: 0, clean: true });
+    const url = `ws://${window.location.host}/mqtt-proxy?ip=${encodeURIComponent(ip)}&pin=${encodeURIComponent(p.pin)}`;
+    const ws  = new WebSocket(url);
     let ok = false;
-    p.mqttClient.on('connect', () => p.mqttClient.subscribe('device/+/report'));
+
+    ws.onmessage = ({ data }) => {
+      let msg; try { msg = JSON.parse(data); } catch (_) { return; }
+      if (msg.type === 'connected') {
+        p._proxySocket = ws;
+        if (!ok) {
+          ok = true; p.connected = true; p.connecting = false; p.status = 'idle';
+          renderCard(p); plog(p, 'Connected via proxy — waiting for status…', 'info'); res();
+        }
+      } else if (msg.type === 'message') {
+        if (!p.bambuSerial) {
+          const pts = msg.topic.split('/');
+          if (pts.length === 3) { p.bambuSerial = pts[1]; bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } }); }
+        }
+        try { handleBambu(p, JSON.parse(msg.payload)); } catch (_) {}
+      } else if (msg.type === 'error') {
+        if (!ok) { ok = true; rej(new Error(msg.message)); }
+        else plog(p, 'MQTT error: ' + msg.message, 'err');
+      }
+    };
+    ws.onerror = () => { if (!ok) { ok = true; rej(new Error('Proxy WebSocket error')); } };
+    ws.onclose = () => {
+      if (!ok) { ok = true; rej(new Error('Proxy WebSocket closed')); }
+      else if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); }
+    };
+    setTimeout(() => { if (!ok) { ok = true; ws.close(); rej(new Error('Connection timed out')); } }, 9000);
+  });
+}
+
+// Direct WebSocket MQTT on port 2883 — Bambu's plain WebSocket MQTT endpoint
+// Works when the browser is on the same local network and served over HTTP (not HTTPS)
+function connectBambuWs(p, ip) {
+  return new Promise((res, rej) => {
+    p.mqttClient = mqtt.connect('ws://' + ip + ':2883', {
+      clientId: 'printara_' + uid().slice(0, 8), username: 'bblp', password: p.pin,
+      connectTimeout: 8000, reconnectPeriod: 0, clean: true,
+    });
+    let ok = false;
+    p.mqttClient.on('connect', () => {
+      p.mqttClient.subscribe('device/+/report', () => {
+        if (!ok) { ok = true; p.connected = true; p.connecting = false; p.status = 'idle'; renderCard(p); plog(p, 'Connected — waiting for status…', 'info'); res(); }
+      });
+    });
     p.mqttClient.on('message', (topic, raw) => {
       if (!p.bambuSerial) {
         const pts = topic.split('/');
         if (pts.length === 3) { p.bambuSerial = pts[1]; bPub(p, { pushing: { sequence_id: '0', command: 'pushall' } }); }
       }
-      if (!ok) { ok = true; p.connected = true; p.connecting = false; p.status = 'idle'; renderCard(p); res(); }
       try { handleBambu(p, JSON.parse(raw.toString())); } catch (_) {}
     });
     p.mqttClient.on('error', e => { if (!ok) { ok = true; rej(e); } });
-    p.mqttClient.on('close', () => { if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); } });
+    p.mqttClient.on('close', () => {
+      if (!ok) { ok = true; rej(new Error('Connection closed')); }
+      else if (p.connected) { p.connected = false; p.status = 'idle'; renderCard(p); plog(p, 'Disconnected', 'err'); }
+    });
     setTimeout(() => { if (!ok) { ok = true; rej(new Error('Timeout')); } }, 9000);
   });
 }
@@ -649,6 +718,9 @@ function bPub(p, payload) {
   const topic = 'device/' + p.bambuSerial + '/request';
   const msg   = JSON.stringify(payload);
   if (window.mqttBridge && p.bambuSerial) { window.mqttBridge.publish(p.id, topic, msg); return; }
+  if (p._proxySocket?.readyState === WebSocket.OPEN && p.bambuSerial) {
+    p._proxySocket.send(JSON.stringify({ topic, payload: msg })); return;
+  }
   if (p.mqttClient && p.bambuSerial) p.mqttClient.publish(topic, msg);
 }
 
@@ -671,6 +743,7 @@ function handleBambu(p, data) {
 function discBambu(p) {
   if (window.mqttBridge) window.mqttBridge.disconnect(p.id).catch(() => {});
   p.mqttClient?.end(true); p.mqttClient = null;
+  try { p._proxySocket?.close(); } catch (_) {} p._proxySocket = null;
   p.bambuSerial = ''; p.bambuLast = ''; p.connected = false; p.status = 'idle'; renderCard(p);
 }
 
@@ -728,11 +801,11 @@ async function startPrint(p, item) {
       return;
     }
     if (window.ftpBridge) {
-      // Electron: FTP upload to printer then trigger via MQTT (correct Bambu local API flow)
-      startBambuFtp(p, item);
+      startBambuFtp(p, item);          // Electron: native FTP bridge
+    } else if (HAS_LOCAL_SERVER) {
+      startBambuServerFtp(p, item);    // Local server: FTP proxy via /ftp-upload
     } else {
-      // Browser fallback: stream gcode line-by-line via MQTT (no FTP available)
-      startBambuGcode(p, item);
+      startBambuGcode(p, item);        // Browser-only fallback: stream gcode line-by-line
     }
     return;
   }
@@ -783,6 +856,38 @@ async function startBambuFtp(p, item) {
     });
   } catch (e) {
     toast('FTP upload failed: ' + e.message, 'error');
+    item.status = 'error'; p.isPrinting = false; p.status = 'idle';
+    renderCard(p); renderPQ(); updatePanelProg(p);
+  }
+}
+
+async function startBambuServerFtp(p, item) {
+  try {
+    item.status = 'uploading'; renderPQ();
+    toast('Uploading to printer…', 'info');
+    const ip  = p.ip.replace(/^https?:\/\//, '');
+    const buf = await item.file.arrayBuffer();
+    const r   = await fetch(
+      `/ftp-upload?ip=${encodeURIComponent(ip)}&pin=${encodeURIComponent(p.pin)}&filename=${encodeURIComponent(item.name)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: buf }
+    );
+    if (!r.ok) { const t = await r.text(); throw new Error(t); }
+    toast('Upload done — starting print', 'success');
+    item.status = 'printing'; renderPQ();
+    const amsMapping = p.filamentColors.slice(0, 2).map((_, i) => ({ ams: 0, slot: i }));
+    bPub(p, {
+      print: {
+        sequence_id: '0', command: 'project_file',
+        param: 'Metadata/plate_1.gcode',
+        subtask_name: item.name.replace(/\.[^.]+$/, ''),
+        url: `ftp://${ip}/model/${item.name}`,
+        timelapse: false, bed_leveling: true,
+        flow_cali: false, vibration_cali: false, layer_inspect: false,
+        ams_mapping: amsMapping,
+      },
+    });
+  } catch (e) {
+    toast('Upload failed: ' + e.message, 'error');
     item.status = 'error'; p.isPrinting = false; p.status = 'idle';
     renderCard(p); renderPQ(); updatePanelProg(p);
   }
@@ -879,13 +984,50 @@ function openManage(id) {
 
 function switchPrinter(id) { openManage(id); }
 
+const PRESET_SWATCHES = [
+  '#ffffff','#d1d5db','#9ca3af','#6b7280','#374151','#111111',
+  '#ef4444','#f97316','#eab308','#84cc16','#22c55e','#14b8a6',
+  '#06b6d4','#3b82f6','#6366f1','#8b5cf6','#ec4899','#f43f5e',
+  '#92400e','#78350f','#f5f0e8',
+];
+
 function renderAmsSlots(p) {
   const container = document.getElementById('ams-slots');
-  container.innerHTML = ['Color 1', 'Color 2'].map((label, i) => `
-    <div class="ams-slot">
-      <input type="color" value="${p.filamentColors[i] || '#888888'}" onchange="setFilamentColor('${p.id}',${i},this.value)" title="${label}" />
-      <label>${label}</label>
-    </div>`).join('');
+  const sel = p.filamentColors || [];
+
+  const swatchHtml = PRESET_SWATCHES.map(color => {
+    const idx = sel.indexOf(color);
+    const isSel = idx !== -1;
+    return `<button class="ams-swatch${isSel ? ' selected' : ''}" style="background:${color}"
+      onclick="toggleFilamentColor('${p.id}','${color}')" title="${color}">${
+      isSel ? `<span class="ams-swatch-num">${idx + 1}</span>` : ''
+    }</button>`;
+  }).join('');
+
+  const customHtml = `<label class="ams-swatch ams-swatch-custom" title="Custom color" style="cursor:pointer">
+    <input type="color" style="opacity:0;position:absolute;width:1px;height:1px;pointer-events:none"
+      onchange="addCustomFilamentColor('${p.id}',this.value)">+
+  </label>`;
+
+  const chipHtml = sel.length
+    ? `<div class="ams-sel-list">${sel.map((c, i) => `<span class="ams-sel-chip"><span class="ams-sel-dot" style="background:${c}"></span>Slot ${i + 1}</span>`).join('')}</div>`
+    : '<div style="font-size:10px;color:var(--text3);margin-top:6px">Click swatches to select filament colors</div>';
+
+  container.innerHTML = `<div class="ams-swatches">${swatchHtml}${customHtml}</div>${chipHtml}`;
+}
+
+function toggleFilamentColor(pid, color) {
+  const p = printers.get(pid); if (!p) return;
+  const idx = p.filamentColors.indexOf(color);
+  if (idx !== -1) p.filamentColors.splice(idx, 1);
+  else p.filamentColors.push(color);
+  save(); renderAmsSlots(p);
+}
+
+function addCustomFilamentColor(pid, color) {
+  const p = printers.get(pid); if (!p) return;
+  if (!p.filamentColors.includes(color)) p.filamentColors.push(color);
+  save(); renderAmsSlots(p);
 }
 
 function setFilamentColor(pid, idx, color) {
