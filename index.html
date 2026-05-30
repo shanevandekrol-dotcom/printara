@@ -677,6 +677,21 @@
     initHeroCanvas();
   });
 
+  // ── Scroll state ─────────────────────────────────────────────────────────
+  let _scrollY = 0, _scrollVel = 0, _lastScrollY = 0;
+  window.addEventListener('scroll', () => {
+    _scrollY = window.scrollY;
+    _scrollVel = _scrollY - _lastScrollY;
+    _lastScrollY = _scrollY;
+    const heroCanvas = document.getElementById('heroCanvas');
+    if (heroCanvas) heroCanvas.style.opacity = Math.max(0, 1 - _scrollY/420).toFixed(3);
+    const cubeOpacity = Math.max(0, 1 - _scrollY/550).toFixed(3);
+    document.querySelectorAll('.fl-scene').forEach(el => el.style.opacity = cubeOpacity);
+  }, { passive: true });
+
+  // decay scroll velocity each frame so dots settle when scrolling stops
+  (function decayScroll() { _scrollVel *= 0.82; requestAnimationFrame(decayScroll); })();
+
   // ── Background constellation canvas ───────────────────────────────────────
   (function initBgCanvas() {
     const canvas = document.getElementById('bgCanvas');
@@ -684,7 +699,7 @@
     const ctx = canvas.getContext('2d');
     let W, H;
     const DOTS = [];
-    const N = 80;
+    const N = 50;
     const GCODES = ['G28','G1 Z10','M104 S200','G0 X50 Y50','M109','M140 S60','G29','M106 S255','G92 E0','T0','M82','G21'];
 
     function resize() {
@@ -707,42 +722,48 @@
     const COLS = Math.floor(W / 90);
     const drops = Array.from({length: COLS}, () => ({ y: Math.random()*H, speed: 0.4+Math.random()*0.8, code: GCODES[Math.floor(Math.random()*GCODES.length)] }));
 
+    let bgFrame = 0;
     function bgTick() {
       ctx.clearRect(0, 0, W, H);
 
       // G-code rain
       ctx.font = '11px monospace';
-      for (const d of drops) {
+      for (let di = 0; di < drops.length; di++) {
+        const d = drops[di];
         ctx.fillStyle = 'rgba(0,153,255,0.07)';
-        ctx.fillText(d.code, (drops.indexOf(d)) * 90 + 10, d.y);
+        ctx.fillText(d.code, di * 90 + 10, d.y);
         d.y += d.speed;
         if (d.y > H + 20) { d.y = -20; d.code = GCODES[Math.floor(Math.random()*GCODES.length)]; }
       }
 
-      // Move & draw dots
+      // Move & draw dots (nudge with scroll velocity)
+      const sv = _scrollVel * 0.12;
       for (const d of DOTS) {
-        d.x += d.vx; d.y += d.vy;
+        d.x += d.vx; d.y += d.vy + sv;
         if (d.x < 0 || d.x > W) d.vx *= -1;
-        if (d.y < 0 || d.y > H) d.vy *= -1;
+        if (d.y < 0) d.y = H; if (d.y > H) d.y = 0;
         ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
         ctx.fillStyle = d.color + '55'; ctx.fill();
       }
 
-      // Lines between close dots
-      for (let i = 0; i < DOTS.length; i++) {
-        for (let j = i+1; j < DOTS.length; j++) {
-          const dx = DOTS[i].x-DOTS[j].x, dy = DOTS[i].y-DOTS[j].y;
-          const dist = Math.sqrt(dx*dx+dy*dy);
-          if (dist < 120) {
-            ctx.save();
-            ctx.globalAlpha = (1-dist/120)*0.12;
-            ctx.strokeStyle = DOTS[i].color;
-            ctx.lineWidth = 0.8;
-            ctx.beginPath(); ctx.moveTo(DOTS[i].x,DOTS[i].y); ctx.lineTo(DOTS[j].x,DOTS[j].y); ctx.stroke();
-            ctx.restore();
+      // Lines between close dots — only every other frame (O(n²) skip)
+      if (bgFrame % 2 === 0) {
+        for (let i = 0; i < DOTS.length; i++) {
+          for (let j = i+1; j < DOTS.length; j++) {
+            const dx = DOTS[i].x-DOTS[j].x, dy = DOTS[i].y-DOTS[j].y;
+            const dist = Math.sqrt(dx*dx+dy*dy);
+            if (dist < 120) {
+              ctx.save();
+              ctx.globalAlpha = (1-dist/120)*0.12;
+              ctx.strokeStyle = DOTS[i].color;
+              ctx.lineWidth = 0.8;
+              ctx.beginPath(); ctx.moveTo(DOTS[i].x,DOTS[i].y); ctx.lineTo(DOTS[j].x,DOTS[j].y); ctx.stroke();
+              ctx.restore();
+            }
           }
         }
       }
+      bgFrame++;
       requestAnimationFrame(bgTick);
     }
     bgTick();
@@ -801,7 +822,7 @@
     ];
 
     const trails=[], sparks=[], floaters=[], explosions=[], arcs=[], beams=[];
-    const MAX_TRAILS = 4000;
+    const MAX_TRAILS = 1500;
     let frame=0, lastArc=0;
 
     function spawnSpark(x,y,color,n=5){
@@ -882,22 +903,25 @@
         g.addColorStop(0,b.color+'00');g.addColorStop(.5,b.color+Math.round(a*255).toString(16).padStart(2,'0'));g.addColorStop(1,b.color+'00');
         ctx.fillStyle=g;ctx.fillRect(0,b.y-2,W,5);}
 
-      // trails
+      // trails — no shadowBlur here (GPU killer); glow comes from nozzle heads instead
+      ctx.save();ctx.lineWidth=3.5;ctx.lineCap='round';ctx.shadowBlur=0;
       for(let i=trails.length-1;i>=0;i--){const tr=trails[i];tr.alpha-=.0035;if(tr.alpha<=0){trails.splice(i,1);continue;}
-        ctx.save();ctx.globalAlpha=tr.alpha;ctx.strokeStyle=tr.color;ctx.lineWidth=3.5;ctx.lineCap='round';ctx.shadowBlur=20;ctx.shadowColor=tr.color;
-        ctx.beginPath();ctx.moveTo(tr.x1,tr.y1);ctx.lineTo(tr.x2,tr.y2);ctx.stroke();ctx.restore();}
+        ctx.globalAlpha=tr.alpha;ctx.strokeStyle=tr.color;
+        ctx.beginPath();ctx.moveTo(tr.x1,tr.y1);ctx.lineTo(tr.x2,tr.y2);ctx.stroke();}
+      ctx.restore();
 
       // arcs
       for(let i=arcs.length-1;i>=0;i--){const a=arcs[i];a.life-=a.decay;if(a.life<=0){arcs.splice(i,1);continue;}
         ctx.save();ctx.globalAlpha=a.life*.9;ctx.strokeStyle='#cce';ctx.lineWidth=1.5;ctx.shadowBlur=24;ctx.shadowColor='#88aaff';
         ctx.beginPath();ctx.moveTo(a.pts[0][0],a.pts[0][1]);for(let j=1;j<a.pts.length;j++)ctx.lineTo(a.pts[j][0],a.pts[j][1]);ctx.stroke();ctx.restore();}
 
-      // update & draw heads
+      // update & draw heads (scroll slows them down smoothly)
+      const speedMult = Math.max(0.25, 1 - _scrollY/700);
       for(let hi=0;hi<heads.length;hi++){
-        const h=heads[hi];h.px=h.x;h.py=h.y;h.t+=h.speed;
+        const h=heads[hi];h.px=h.x;h.py=h.y;h.t+=h.speed*speedMult;
         const pos=getPos(h);h.x=Math.max(0,Math.min(W,pos.x));h.y=Math.max(0,Math.min(H,pos.y));
         const dx=h.x-h.px,dy=h.y-h.py;if(Math.sqrt(dx*dx+dy*dy)<100&&trails.length<MAX_TRAILS)trails.push({x1:h.px,y1:h.py,x2:h.x,y2:h.y,color:h.color,alpha:.9});
-        if(frame%2===0)spawnSpark(h.x,h.y,h.color,6);
+        if(frame%3===0)spawnSpark(h.x,h.y,h.color,2);
         if(frame%160===hi*20%160)spawnFloater(h.x,h.y,h.color);
         drawNozzle(h);
       }
@@ -908,13 +932,17 @@
         if(h1!==h2){spawnArc(h1,h2);lastArc=frame;}
       }
 
-      // sparks
+      // sparks — no per-particle shadowBlur
+      ctx.save();ctx.shadowBlur=0;
       for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.x+=s.vx;s.y+=s.vy;s.vy+=.09;s.life-=s.decay;if(s.life<=0){sparks.splice(i,1);continue;}
-        ctx.save();ctx.globalAlpha=s.life;ctx.fillStyle=s.color;ctx.shadowBlur=10;ctx.shadowColor=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.size*s.life,0,Math.PI*2);ctx.fill();ctx.restore();}
+        ctx.globalAlpha=s.life;ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.size*s.life,0,Math.PI*2);ctx.fill();}
+      ctx.restore();
 
-      // explosions
+      // explosions — no per-particle shadowBlur
+      ctx.save();ctx.shadowBlur=0;
       for(let i=explosions.length-1;i>=0;i--){const e=explosions[i];e.x+=e.vx;e.y+=e.vy;e.vx*=.95;e.vy*=.95;e.life-=e.decay;if(e.life<=0){explosions.splice(i,1);continue;}
-        ctx.save();ctx.globalAlpha=e.life;ctx.fillStyle=e.color;ctx.shadowBlur=16;ctx.shadowColor=e.color;ctx.beginPath();ctx.arc(e.x,e.y,e.size*e.life,0,Math.PI*2);ctx.fill();ctx.restore();}
+        ctx.globalAlpha=e.life;ctx.fillStyle=e.color;ctx.beginPath();ctx.arc(e.x,e.y,e.size*e.life,0,Math.PI*2);ctx.fill();}
+      ctx.restore();
 
       // floaters
       for(let i=floaters.length-1;i>=0;i--){const f=floaters[i];f.x+=f.vx;f.y+=f.vy;f.rot+=f.rotSpeed;
