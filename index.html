@@ -142,6 +142,54 @@
     }
     @media(max-width:380px) { .projects-grid { grid-template-columns:1fr; } }
 
+    /* ── Animations ── */
+    @keyframes floatBob {
+      0%,100% { transform: translateY(0px); }
+      50%      { transform: translateY(-18px); }
+    }
+    @keyframes cubeRotateA {
+      from { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
+      to   { transform: rotateX(360deg) rotateY(720deg) rotateZ(180deg); }
+    }
+    @keyframes cubeRotateB {
+      from { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
+      to   { transform: rotateX(540deg) rotateY(360deg) rotateZ(360deg); }
+    }
+    @keyframes cubeRotateC {
+      from { transform: rotateX(0deg)   rotateY(0deg); }
+      to   { transform: rotateX(360deg) rotateY(360deg); }
+    }
+    @keyframes glowPulse {
+      0%,100% { box-shadow:0 4px 18px rgba(0,150,255,0.35); }
+      50%      { box-shadow:0 4px 48px rgba(0,150,255,0.85), 0 0 90px rgba(0,150,255,0.35); }
+    }
+    @keyframes logoBounce {
+      0%,100% { transform:translateY(0) scale(1); }
+      50%      { transform:translateY(-6px) scale(1.04); }
+    }
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateY(30px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* wireframe floating cubes */
+    .fl-scene { position:fixed; pointer-events:none; perspective:400px; z-index:0; }
+    .fl-cube  { transform-style:preserve-3d; width:100%; height:100%; }
+    .fl-face  {
+      position:absolute; width:100%; height:100%; border-radius:2px;
+      border:1px solid currentColor; background:transparent;
+    }
+    .fl-cube.blue  { color:rgba(0,153,255,0.35); }
+    .fl-cube.orange{ color:rgba(255,107,53,0.35); }
+
+    /* hero overrides for canvas */
+    .hero { position:relative; overflow:hidden; }
+    .hero > *:not(#heroCanvas) { position:relative; z-index:2; }
+    #heroCanvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
+
+    .hero-logo { animation:logoBounce 3s ease-in-out infinite; }
+    .btn-blue  { animation:glowPulse 2.8s ease-in-out infinite; }
+
     /* ── Printer modal ── */
     .printer-modal { display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
     .printer-modal.open { display:flex; }
@@ -163,6 +211,96 @@
   </style>
 </head>
 <body>
+
+<!-- ===== FLOATING WIREFRAME CUBES (background deco) ===== -->
+<!-- top-left large blue -->
+<div class="fl-scene" style="top:8%;left:3%;width:90px;height:90px;animation:floatBob 7s ease-in-out infinite">
+  <div class="fl-cube blue" style="animation:cubeRotateA 14s linear infinite">
+    <div class="fl-face" style="transform:translateZ(45px)"></div>
+    <div class="fl-face" style="transform:translateZ(-45px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(45px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(45px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(45px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(45px)"></div>
+  </div>
+</div>
+<!-- top-right medium orange -->
+<div class="fl-scene" style="top:12%;right:4%;width:60px;height:60px;animation:floatBob 5.5s ease-in-out infinite 1s">
+  <div class="fl-cube orange" style="animation:cubeRotateB 9s linear infinite">
+    <div class="fl-face" style="transform:translateZ(30px)"></div>
+    <div class="fl-face" style="transform:translateZ(-30px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(30px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(30px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(30px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(30px)"></div>
+  </div>
+</div>
+<!-- mid-left small blue -->
+<div class="fl-scene" style="top:40%;left:1%;width:44px;height:44px;animation:floatBob 4.8s ease-in-out infinite 0.5s">
+  <div class="fl-cube blue" style="animation:cubeRotateC 7s linear infinite">
+    <div class="fl-face" style="transform:translateZ(22px)"></div>
+    <div class="fl-face" style="transform:translateZ(-22px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(22px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(22px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(22px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(22px)"></div>
+  </div>
+</div>
+<!-- mid-right large orange -->
+<div class="fl-scene" style="top:38%;right:2%;width:80px;height:80px;animation:floatBob 8s ease-in-out infinite 2s">
+  <div class="fl-cube orange" style="animation:cubeRotateA 11s linear infinite reverse">
+    <div class="fl-face" style="transform:translateZ(40px)"></div>
+    <div class="fl-face" style="transform:translateZ(-40px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(40px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(40px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(40px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(40px)"></div>
+  </div>
+</div>
+<!-- bottom-left medium blue -->
+<div class="fl-scene" style="bottom:15%;left:5%;width:65px;height:65px;animation:floatBob 6.3s ease-in-out infinite 1.5s">
+  <div class="fl-cube blue" style="animation:cubeRotateB 13s linear infinite">
+    <div class="fl-face" style="transform:translateZ(32px)"></div>
+    <div class="fl-face" style="transform:translateZ(-32px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(32px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(32px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(32px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(32px)"></div>
+  </div>
+</div>
+<!-- bottom-right small orange -->
+<div class="fl-scene" style="bottom:20%;right:6%;width:48px;height:48px;animation:floatBob 5s ease-in-out infinite 0.8s">
+  <div class="fl-cube orange" style="animation:cubeRotateC 8s linear infinite reverse">
+    <div class="fl-face" style="transform:translateZ(24px)"></div>
+    <div class="fl-face" style="transform:translateZ(-24px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(24px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(24px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(24px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(24px)"></div>
+  </div>
+</div>
+<!-- upper-center-left tiny blue -->
+<div class="fl-scene" style="top:25%;left:18%;width:36px;height:36px;animation:floatBob 4.2s ease-in-out infinite 2.5s">
+  <div class="fl-cube blue" style="animation:cubeRotateA 6s linear infinite">
+    <div class="fl-face" style="transform:translateZ(18px)"></div>
+    <div class="fl-face" style="transform:translateZ(-18px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(18px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(18px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(18px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(18px)"></div>
+  </div>
+</div>
+<!-- upper-center-right tiny orange -->
+<div class="fl-scene" style="top:22%;right:18%;width:40px;height:40px;animation:floatBob 4.6s ease-in-out infinite 3s">
+  <div class="fl-cube orange" style="animation:cubeRotateB 7s linear infinite reverse">
+    <div class="fl-face" style="transform:translateZ(20px)"></div>
+    <div class="fl-face" style="transform:translateZ(-20px)"></div>
+    <div class="fl-face" style="transform:rotateY(90deg) translateZ(20px)"></div>
+    <div class="fl-face" style="transform:rotateY(-90deg) translateZ(20px)"></div>
+    <div class="fl-face" style="transform:rotateX(90deg) translateZ(20px)"></div>
+    <div class="fl-face" style="transform:rotateX(-90deg) translateZ(20px)"></div>
+  </div>
+</div>
 
 <!-- ===== PRINTER MODAL ===== -->
 <div class="printer-modal" id="printerModal" onclick="if(event.target===this)closeMod('printerModal')">
@@ -268,6 +406,7 @@
 
 <!-- ===== HERO ===== -->
 <section class="hero">
+  <canvas id="heroCanvas"></canvas>
   <img src="logo.png" alt="Printara" class="hero-logo" />
   <h1>Design. Generate. Print.</h1>
   <p>Browser-based 3D design tools and a community project library — sign up free.</p>
@@ -564,7 +703,223 @@
     updateHeader();
     renderGallery();
     if (location.hash && getSession()) location.href='tools.html'+location.hash;
+    initHeroCanvas();
   });
+
+  // ── Hero canvas — animated 3D printer simulation ──────────────────────────
+  function initHeroCanvas() {
+    const canvas = document.getElementById('heroCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let W, H, dpr;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      canvas.width  = W * dpr;
+      canvas.height = H * dpr;
+      ctx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener('resize', () => { resize(); });
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    const COLORS = ['#ff6b35','#0099ff','#22c55e','#a855f7','#eab308'];
+
+    // Printer heads — each does a raster scan across the hero
+    const heads = [
+      { col: 0, row: 0, dir: 1, x: 0, y: 0, speed: 1.8, color: '#ff6b35', ci: 0 },
+      { col: 0, row: 8, dir:-1, x: 0, y: 0, speed: 1.4, color: '#0099ff', ci: 1 },
+    ];
+
+    const ROWS = 18;        // total raster rows in hero
+    const trails  = [];     // { x1,y1,x2,y2, color, alpha }
+    const sparks  = [];     // particles from nozzle
+    const floaters= [];     // completed print shapes rising from nozzle
+
+    // Simple silhouette shapes: list of [x,y] normalized 0-1 relative to a 60×60 bounding box
+    const SHAPES = [
+      // vase
+      [ [0.5,0],[0.7,0.15],[0.8,0.35],[0.72,0.55],[0.65,0.7],[0.7,0.85],[0.8,1],
+        [0.2,1],[0.3,0.85],[0.35,0.7],[0.28,0.55],[0.2,0.35],[0.3,0.15],[0.5,0] ],
+      // cube (perspective)
+      [ [0.3,0.15],[0.8,0.15],[0.8,0.65],[0.3,0.65],[0.3,0.15],
+        null,[0.3,0.15],[0.1,0.35],[0.1,0.85],[0.3,0.65],
+        null,[0.1,0.35],[0.6,0.35],[0.8,0.15],
+        null,[0.6,0.35],[0.6,0.85],[0.1,0.85],
+        null,[0.6,0.85],[0.8,0.65] ],
+      // rocket
+      [ [0.5,0],[0.65,0.25],[0.65,0.75],[0.75,0.9],[0.75,1],[0.5,0.85],[0.25,1],[0.25,0.9],[0.35,0.75],[0.35,0.25],[0.5,0],
+        null,[0.65,0.35],[0.85,0.55],[0.85,0.7],[0.65,0.6],
+        null,[0.35,0.35],[0.15,0.55],[0.15,0.7],[0.35,0.6] ],
+      // gear outline (simplified)
+      [ [0.5,0.02],[0.58,0.1],[0.72,0.08],[0.78,0.2],[0.92,0.28],[0.88,0.42],
+        [0.98,0.5],[0.88,0.58],[0.92,0.72],[0.78,0.8],[0.72,0.92],[0.58,0.9],
+        [0.5,0.98],[0.42,0.9],[0.28,0.92],[0.22,0.8],[0.08,0.72],[0.12,0.58],
+        [0.02,0.5],[0.12,0.42],[0.08,0.28],[0.22,0.2],[0.28,0.08],[0.42,0.1],[0.5,0.02] ],
+    ];
+
+    function spawnFloater(x, y, color) {
+      const sh = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      const size = 36 + Math.random() * 28;
+      floaters.push({ x, y, vx: (Math.random()-.5)*0.4, vy: -0.7 - Math.random()*0.5,
+        color, shape: sh, size, alpha: 0, phase: 'in', life: 1 });
+    }
+
+    function spawnSpark(x, y, color) {
+      for (let i = 0; i < 3; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const spd   = 0.5 + Math.random() * 2;
+        sparks.push({ x, y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 1,
+          life: 1, decay: 0.04 + Math.random()*0.04, color });
+      }
+    }
+
+    // Init head positions
+    function rowY(row) { return (row / ROWS) * H; }
+    heads[0].x = 0;        heads[0].y = rowY(heads[0].row);
+    heads[1].x = W;        heads[1].y = rowY(heads[1].row);
+
+    let lastRespawn = [0, 0]; // track when each head last spawned a floater
+
+    function tick() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Background grid
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 0.5;
+      for (let gx = 0; gx < W; gx += 38) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+      }
+      for (let gy = 0; gy < H; gy += 38) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+      }
+      ctx.restore();
+
+      // Trails
+      for (let i = trails.length - 1; i >= 0; i--) {
+        const tr = trails[i];
+        tr.alpha -= 0.003;
+        if (tr.alpha <= 0) { trails.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = tr.alpha;
+        ctx.strokeStyle = tr.color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = tr.color;
+        ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Printer heads — raster scan
+      for (let hi = 0; hi < heads.length; hi++) {
+        const h = heads[hi];
+        const px = h.x, py = h.y;
+        h.x += h.speed * h.dir;
+
+        // Reached edge → next row
+        if ((h.dir > 0 && h.x >= W) || (h.dir < 0 && h.x <= 0)) {
+          h.dir *= -1;
+          h.row = (h.row + 1) % ROWS;
+          h.y = rowY(h.row);
+          h.x = h.dir > 0 ? 0 : W;
+          // Color cycles every full pass
+          if (h.row === 0) {
+            h.ci = (h.ci + 1) % COLORS.length;
+            h.color = COLORS[h.ci];
+          }
+          // Occasionally spawn a floating object
+          if (Math.random() < 0.4) spawnFloater(h.x, h.y, h.color);
+        }
+
+        trails.push({ x1: px, y1: py, x2: h.x, y2: h.y, color: h.color, alpha: 0.9 });
+        if (Math.random() < 0.35) spawnSpark(h.x, h.y, h.color);
+
+        // Draw nozzle glow
+        const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, 22);
+        g.addColorStop(0, h.color + 'cc');
+        g.addColorStop(1, h.color + '00');
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(h.x, h.y, 22, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+
+        // Draw nozzle body (small printer-head icon)
+        ctx.save();
+        ctx.fillStyle = h.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = h.color;
+        // rectangle body
+        ctx.fillRect(h.x - 8, h.y - 10, 16, 10);
+        // nozzle tip
+        ctx.beginPath();
+        ctx.moveTo(h.x - 4, h.y);
+        ctx.lineTo(h.x + 4, h.y);
+        ctx.lineTo(h.x + 2, h.y + 6);
+        ctx.lineTo(h.x - 2, h.y + 6);
+        ctx.closePath(); ctx.fill();
+        // tiny hot dot
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#fff';
+        ctx.beginPath(); ctx.arc(h.x, h.y + 7, 2, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+
+      // Sparks
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx; s.y += s.vy; s.vy += 0.05;
+        s.life -= s.decay;
+        if (s.life <= 0) { sparks.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = s.life;
+        ctx.fillStyle = s.color;
+        ctx.shadowBlur = 4; ctx.shadowColor = s.color;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+
+      // Floating completed shapes
+      for (let i = floaters.length - 1; i >= 0; i--) {
+        const f = floaters[i];
+        f.x += f.vx; f.y += f.vy;
+        if (f.phase === 'in')  { f.alpha += 0.025; if (f.alpha >= 0.7) f.phase = 'out'; }
+        if (f.phase === 'out') { f.alpha -= 0.012; }
+        if (f.alpha <= 0 || f.y < -f.size * 2) { floaters.splice(i, 1); continue; }
+
+        ctx.save();
+        ctx.globalAlpha = f.alpha;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 1.5;
+        ctx.lineCap  = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowBlur  = 8;
+        ctx.shadowColor = f.color;
+        ctx.translate(f.x, f.y);
+
+        // Draw shape from normalized points
+        let started = false;
+        ctx.beginPath();
+        for (const pt of f.shape) {
+          if (pt === null) { ctx.stroke(); ctx.beginPath(); started = false; continue; }
+          const px = (pt[0] - 0.5) * f.size;
+          const py = (pt[1] - 0.5) * f.size;
+          if (!started) { ctx.moveTo(px, py); started = true; }
+          else           ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }
 
   // ── Printer (Web Serial) ──
   let _prPort = null, _prWriter = null, _prReader = null, _prReading = false;
