@@ -86,7 +86,7 @@ ipcMain.handle('ftp:upload', async (_ev, ip, pin, filename, bufferData) => {
       secure: 'implicit',
       secureOptions: { rejectUnauthorized: false },
     });
-    await client.ensureDir('/model');
+    await client.cd('/model');
     await client.uploadFrom(tmpPath, filename);
     return { ok: true };
   } finally {

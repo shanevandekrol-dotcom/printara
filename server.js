@@ -81,7 +81,7 @@ const server = http.createServer(async (req, res) => {
           secure: 'implicit',
           secureOptions: { rejectUnauthorized: false },
         });
-        await client.ensureDir('/model');
+        await client.cd('/model');
         await client.uploadFrom(tmpPath, filename);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
