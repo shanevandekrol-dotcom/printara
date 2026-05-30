@@ -149,6 +149,22 @@
     .ams-sel-chip { display:flex; align-items:center; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 8px 3px 6px; font-size:11px; color:var(--text2); }
     .ams-sel-dot { width:10px; height:10px; border-radius:50%; border:1px solid rgba(255,255,255,.2); flex-shrink:0; }
 
+    /* ── Send / color dialog ── */
+    .color-count-row { display:flex; gap:5px; }
+    .color-count-btn { flex:1; padding:7px 4px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; font-size:11px; font-weight:700; color:var(--text2); cursor:pointer; transition:all .15s; }
+    .color-count-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .slot-row { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+    .slot-row:last-child { border-bottom:none; }
+    .slot-num-badge { width:20px; height:20px; border-radius:50%; background:var(--surface3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; color:var(--text3); flex-shrink:0; }
+    .slot-color-swatch { width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.2); cursor:pointer; flex-shrink:0; overflow:hidden; transition:transform .1s; }
+    .slot-color-swatch:hover { transform:scale(1.12); border-color:rgba(255,255,255,.55); }
+    #send-preview { width:100%; height:130px; border-radius:8px; background:#070712; display:block; margin-bottom:14px; }
+
+    /* ── Part preview in manage panel ── */
+    #part-preview-section { background:#060610; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #part-preview-canvas { width:100%; height:140px; display:block; }
+    #part-preview-label { font-size:10px; color:var(--text3); text-align:center; padding:4px 14px 8px; }
+
     /* printer selector */
     #printer-select { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:12px; font-weight:700; padding:5px 8px; outline:none; max-width:140px; }
     #printer-select:focus { border-color:var(--accent); }
@@ -249,6 +265,11 @@
     <img id="pcam-img" class="hidden" src="" alt="" />
     <div class="live-badge hidden" id="plive">● LIVE</div>
   </div>
+  <!-- Part / toolpath preview -->
+  <div id="part-preview-section" style="display:none">
+    <canvas id="part-preview-canvas"></canvas>
+    <div id="part-preview-label"></div>
+  </div>
   <div class="pbody">
     <!-- Progress -->
     <div>
@@ -267,8 +288,8 @@
     <!-- Bambu direct LAN upload (shown only for Bambu printers) -->
     <div id="bambu-lan-section" style="display:none">
       <div class="stitle">Send to Printer via LAN</div>
-      <button class="btn-primary" id="bambu-lan-btn" onclick="bambuLanSend()" style="width:100%;padding:9px;font-size:13px">⬆ Upload &amp; Print via LAN</button>
-      <div style="font-size:10px;color:var(--text3);margin-top:6px">Uploads your .gcode or .3mf file directly to the printer over your local network using FTP.</div>
+      <button class="btn-primary" id="bambu-lan-btn" onclick="openSendDialog()" style="width:100%;padding:9px;font-size:13px">⬆ Choose File &amp; Colors…</button>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">Upload .gcode or .3mf directly over your local network — choose filament colors and preview the toolpath first.</div>
     </div>
     <!-- Queue -->
     <div>
@@ -318,6 +339,45 @@
         <button class="btn-primary btn-sm" onclick="pSendCon()">Send</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ===== SEND / COLOR DIALOG ===== -->
+<div id="send-dialog" class="modal-bg hidden" onclick="if(event.target===this)closeSendDialog()">
+  <div class="modal" style="max-width:360px">
+    <button class="mclose" onclick="closeSendDialog()">×</button>
+    <h2 style="margin-bottom:14px">Send to Printer via LAN</h2>
+
+    <!-- File picker -->
+    <div class="field">
+      <label>File</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="send-fname" placeholder="No file chosen…" readonly style="flex:1;cursor:pointer;font-size:12px" onclick="pickSendFile()" />
+        <button class="btn-secondary btn-sm" onclick="pickSendFile()" style="padding:9px 12px;flex-shrink:0">Browse</button>
+      </div>
+    </div>
+
+    <!-- Toolpath preview -->
+    <canvas id="send-preview"></canvas>
+
+    <!-- Color count -->
+    <div class="field">
+      <label>Number of Colors</label>
+      <div class="color-count-row" id="send-color-count-row">
+        <button class="color-count-btn active" onclick="setSendColorCount(1)">1</button>
+        <button class="color-count-btn" onclick="setSendColorCount(2)">2</button>
+        <button class="color-count-btn" onclick="setSendColorCount(3)">3</button>
+        <button class="color-count-btn" onclick="setSendColorCount(4)">4</button>
+      </div>
+    </div>
+
+    <!-- AMS slot color assignment -->
+    <div class="field">
+      <label>AMS Slot Colors</label>
+      <div id="send-slot-list"></div>
+    </div>
+
+    <button class="btn-primary" id="send-do-btn" onclick="doSendLan()" style="width:100%;padding:11px;font-size:14px;margin-top:4px" disabled>⬆ Upload &amp; Print</button>
   </div>
 </div>
 
@@ -852,8 +912,9 @@ async function startBambuFtp(p, item) {
     toast('Upload done — starting print', 'success');
     item.status = 'printing'; renderPQ();
 
-    // Build AMS mapping from stored filament colors (slot 0 + slot 1)
-    const amsMapping = p.filamentColors.slice(0, 2).map((_, i) => ({ ams: 0, slot: i }));
+    // Build AMS mapping from item's color slots (or fallback to printer's colors)
+    const _amsCols = item.colors || p.filamentColors || [];
+    const amsMapping = _amsCols.map((_, i) => ({ ams: 0, slot: i }));
 
     bPub(p, {
       print: {
@@ -890,7 +951,8 @@ async function startBambuServerFtp(p, item) {
     if (!r.ok) { const t = await r.text(); throw new Error(t); }
     toast('Upload done — starting print', 'success');
     item.status = 'printing'; renderPQ();
-    const amsMapping = p.filamentColors.slice(0, 2).map((_, i) => ({ ams: 0, slot: i }));
+    const _amsCols2 = item.colors || p.filamentColors || [];
+    const amsMapping = _amsCols2.map((_, i) => ({ ams: 0, slot: i }));
     bPub(p, {
       print: {
         sequence_id: '0', command: 'project_file',
@@ -999,7 +1061,7 @@ function openManage(id) {
     lanSection.style.display = 'none';
   }
 
-  renderPQ(); updatePanelProg(p); updatePanelTemps(p);
+  renderPQ(); updatePanelProg(p); updatePanelTemps(p); updatePartPreview(p);
   const con = document.getElementById('pcon'); con.innerHTML = '';
   for (const m of p.logs) { const d = document.createElement('div'); d.className = 'cl ' + (m.t||''); d.textContent = ({sent:'→ ',info:'◉ ',err:'✗ '}[m.t]||'← ') + m.s; con.appendChild(d); }
   con.scrollTop = con.scrollHeight;
@@ -1086,18 +1148,38 @@ function updatePanelTemps(p) {
 function renderPQ() {
   const p = printers.get(managedId); if (!p) return;
   const el = document.getElementById('pqueue');
-  if (!p.queue.length) { el.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:14px">No files queued</div>'; return; }
+  if (!p.queue.length) { el.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:14px">No files queued</div>'; updatePartPreview(p); return; }
   el.innerHTML = '';
   for (const item of p.queue) {
     const d = document.createElement('div');
     d.className = 'qi' + (item === p.currentItem ? ' active' : '');
-    const canRm = item !== p.currentItem; // can't remove what's actively printing
-    const colorDot = item.color ? `<span class="fil-dot" style="background:${item.color};margin-right:2px" title="Filament 1"></span>` : '';
-    const colorDot2 = item.color2 ? `<span class="fil-dot" style="background:${item.color2}" title="Filament 2"></span>` : '';
-    d.innerHTML = `${colorDot}${colorDot2}<div class="qname" title="${item.name}">${item.name}</div><div class="qbadge badge-${item.status}">${item.status}</div>${canRm?`<button class="qi-rm" onclick="rmQI('${p.id}','${item.id}')">✕</button>`:''}`;
+    const canRm = item !== p.currentItem;
+    const colorCols = (item.colors || [item.color, item.color2].filter(Boolean)).filter(Boolean);
+    const dots = colorCols.map((c, i) => `<span class="fil-dot" style="background:${c}" title="Slot ${i+1}: ${c}"></span>`).join('');
+    const previewBtn = (item.file && item !== p.currentItem && item.status === 'queued')
+      ? `<button class="qi-rm" title="Preview" onclick="previewQueueItem('${p.id}','${item.id}')">👁</button>` : '';
+    d.innerHTML = `<div style="display:flex;gap:3px;align-items:center;flex-shrink:0">${dots}</div><div class="qname" title="${item.name}">${item.name}</div><div class="qbadge badge-${item.status}">${item.status}</div>${previewBtn}${canRm?`<button class="qi-rm" onclick="rmQI('${p.id}','${item.id}')">✕</button>`:''}`;
     el.appendChild(d);
   }
   document.getElementById('p-start').disabled = !p.connected || p.isPrinting || !p.queue.some(i=>i.status==='queued');
+  updatePartPreview(p);
+}
+
+async function previewQueueItem(pid, iid) {
+  const p = printers.get(pid); if (!p) return;
+  const item = p.queue.find(i => i.id === iid); if (!item || !item.file) return;
+  const section = document.getElementById('part-preview-section');
+  const canvas  = document.getElementById('part-preview-canvas');
+  const label   = document.getElementById('part-preview-label');
+  section.style.display = '';
+  label.textContent = item.name;
+  const ext = item.name.split('.').pop().toLowerCase();
+  if (ext === '3mf') { _draw3mfPlaceholder(canvas, item.name); }
+  else {
+    const text = await item.file.text();
+    const colors = item.colors || [item.color, item.color2].filter(Boolean);
+    renderGcodePreview(canvas, text, colors);
+  }
 }
 
 function pClearDone() {
@@ -1110,34 +1192,216 @@ function rmQI(pid, iid) { const p = printers.get(pid); if (p) { p.queue = p.queu
 
 function pAddFiles() {
   const p = printers.get(managedId); if (!p) return;
+  if (p.type === 'bambu') { openSendDialog(); return; }
   const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.gcode,.g,.gc,.gco,.ngc,.3mf';
   inp.onchange = () => {
-    const c1 = p.filamentColors[0] || '#00aaff';
-    const c2 = p.filamentColors[1] || null;
-    for (const f of inp.files) p.queue.push({ id: uid(), name: f.name, file: f, status: 'queued', color: c1, color2: p.type === 'bambu' ? c2 : null });
+    const colors = p.filamentColors.length ? p.filamentColors : ['#00aaff'];
+    for (const f of inp.files) p.queue.push({ id: uid(), name: f.name, file: f, status: 'queued', colors });
     renderPQ();
   };
   inp.click();
 }
 
-async function bambuLanSend() {
-  const p = printers.get(managedId); if (!p || p.type !== 'bambu') return;
+// ── Send dialog ────────────────────────────────────────────────────────────────
+let _sdFile = null, _sdColorCount = 1, _sdColors = ['#00aaff','#ff5500','#22c55e','#a855f7'];
+
+async function openSendDialog() {
+  const p = printers.get(managedId); if (!p) return;
   const canFtp = !!(window.ftpBridge || await _serverProbe);
-  if (!canFtp) {
-    toast('Run "node server.js" locally to upload files to your Bambu printer via LAN.', 'error');
-    return;
+  if (!canFtp) { toast('Run "node server.js" locally to upload files via LAN.', 'error'); return; }
+  _sdFile = null;
+  _sdColorCount = Math.max(1, Math.min(4, p.filamentColors.length || 1));
+  _sdColors = ['#00aaff','#ff5500','#22c55e','#a855f7'].map((def, i) => p.filamentColors[i] || def);
+  document.getElementById('send-fname').value = '';
+  document.getElementById('send-do-btn').disabled = true;
+  _resetSendPreview();
+  document.getElementById('send-dialog').classList.remove('hidden');
+  _renderSendColorCount();
+  _renderSendSlots();
+}
+
+function closeSendDialog() { document.getElementById('send-dialog').classList.add('hidden'); }
+
+function setSendColorCount(n) {
+  _sdColorCount = n;
+  _renderSendColorCount();
+  _renderSendSlots();
+  if (_sdFile) _repaintSendPreview();
+}
+
+function _renderSendColorCount() {
+  document.querySelectorAll('#send-color-count-row .color-count-btn').forEach((b, i) => b.classList.toggle('active', i + 1 === _sdColorCount));
+}
+
+function _renderSendSlots() {
+  const wrap = document.getElementById('send-slot-list');
+  wrap.innerHTML = '';
+  for (let i = 0; i < _sdColorCount; i++) {
+    const row = document.createElement('div'); row.className = 'slot-row';
+    row.innerHTML = `
+      <div class="slot-num-badge">${i + 1}</div>
+      <label class="slot-color-swatch" style="background:${_sdColors[i]}" title="AMS Slot ${i + 1} — click to change">
+        <input type="color" value="${_sdColors[i]}" style="opacity:0;position:absolute;width:1px;height:1px"
+          onchange="setSendSlotColor(${i},this.value)">
+      </label>
+      <span style="flex:1;font-size:12px;color:var(--text2)">AMS Slot ${i + 1}</span>
+      <span style="font-size:11px;color:var(--text3)">${_sdColors[i]}</span>`;
+    wrap.appendChild(row);
   }
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.gcode,.g,.gc,.gco,.ngc,.3mf';
-  inp.onchange = () => {
-    const f = inp.files[0]; if (!f) return;
-    const c1 = p.filamentColors[0] || '#00aaff';
-    const c2 = p.filamentColors[1] || null;
-    const item = { id: uid(), name: f.name, file: f, status: 'queued', color: c1, color2: c2 };
-    p.queue.push(item);
-    renderPQ();
-    if (!p.isPrinting) startPrint(p, item);
-  };
-  inp.click();
+}
+
+function setSendSlotColor(idx, color) {
+  _sdColors[idx] = color;
+  _renderSendSlots();
+  if (_sdFile) _repaintSendPreview();
+}
+
+async function pickSendFile() {
+  await new Promise(res => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.gcode,.g,.gc,.gco,.ngc,.3mf';
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) { res(); return; }
+      _sdFile = f;
+      document.getElementById('send-fname').value = f.name;
+      document.getElementById('send-do-btn').disabled = false;
+      await _repaintSendPreview();
+      res();
+    };
+    inp.click();
+  });
+}
+
+function _resetSendPreview() {
+  const c = document.getElementById('send-preview');
+  const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+}
+
+async function _repaintSendPreview() {
+  const c = document.getElementById('send-preview');
+  if (!_sdFile) { _resetSendPreview(); return; }
+  const ext = _sdFile.name.split('.').pop().toLowerCase();
+  if (ext === '3mf') {
+    _draw3mfPlaceholder(c, _sdFile.name);
+  } else {
+    const text = await _sdFile.text();
+    renderGcodePreview(c, text, _sdColors.slice(0, _sdColorCount));
+  }
+}
+
+async function doSendLan() {
+  if (!_sdFile) return;
+  const p = printers.get(managedId); if (!p) return;
+  p.filamentColors = _sdColors.slice(0, _sdColorCount);
+  save();
+  const item = { id: uid(), name: _sdFile.name, file: _sdFile, status: 'queued', colors: [...p.filamentColors], color: p.filamentColors[0], color2: p.filamentColors[1] || null };
+  p.queue.push(item); renderPQ();
+  closeSendDialog();
+  if (!p.isPrinting) startPrint(p, item);
+}
+
+// ── G-code toolpath preview ────────────────────────────────────────────────────
+function renderGcodePreview(canvas, gcode, colors) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = canvas.clientWidth || canvas.parentElement?.clientWidth || 320;
+  const H = canvas.clientHeight || 140;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#070712'; ctx.fillRect(0, 0, W, H);
+
+  const lines = gcode.split('\n');
+  const LIMIT = 180000;
+  let cx = 0, cy = 0, cz = 0, tool = 0, rel = false;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  const moves = [];
+
+  for (let i = 0; i < Math.min(lines.length, LIMIT); i++) {
+    let l = lines[i]; const sc = l.indexOf(';'); if (sc >= 0) l = l.slice(0, sc);
+    l = l.trim().toUpperCase(); if (!l) continue;
+    if (l === 'G90') { rel = false; continue; }
+    if (l === 'G91') { rel = true; continue; }
+    const tm = l.match(/^T(\d+)$/); if (tm) { tool = parseInt(tm[1]); continue; }
+    if (l[0] !== 'G' || (l[1] !== '0' && l[1] !== '1' && l.slice(0,2) !== 'G0' && l.slice(0,2) !== 'G1')) continue;
+    let nx = cx, ny = cy, nz = cz, hasXY = false, hasE = false;
+    const xm = l.match(/X(-?[\d.]+)/); if (xm) { nx = rel ? cx + parseFloat(xm[1]) : parseFloat(xm[1]); hasXY = true; }
+    const ym = l.match(/Y(-?[\d.]+)/); if (ym) { ny = rel ? cy + parseFloat(ym[1]) : parseFloat(ym[1]); hasXY = true; }
+    const zm = l.match(/Z(-?[\d.]+)/); if (zm) nz = rel ? cz + parseFloat(zm[1]) : parseFloat(zm[1]);
+    if (l.match(/E-?[\d.]+/)) hasE = true;
+    if (hasXY) {
+      moves.push([cx, cy, nx, ny, hasE, tool]);
+      minX = Math.min(minX, nx, cx); maxX = Math.max(maxX, nx, cx);
+      minY = Math.min(minY, ny, cy); maxY = Math.max(maxY, ny, cy);
+    }
+    cx = nx; cy = ny; cz = nz;
+  }
+
+  if (!moves.length || !isFinite(minX) || maxX <= minX) {
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No toolpath data', W / 2, H / 2); return;
+  }
+
+  const pad = 10;
+  const sf = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+  const ox = (W - (maxX - minX) * sf) / 2, oy = (H - (maxY - minY) * sf) / 2;
+  const tx = x => ox + (x - minX) * sf;
+  const ty = y => H - oy - (y - minY) * sf;
+
+  // Travel moves
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 0.5; ctx.beginPath();
+  for (const [fx, fy, nx2, ny2, hasE] of moves) { if (!hasE) { ctx.moveTo(tx(fx), ty(fy)); ctx.lineTo(tx(nx2), ty(ny2)); } }
+  ctx.stroke();
+
+  // Extrusion per tool/color
+  const palette = colors && colors.length ? colors : ['#0099ff'];
+  const numColors = palette.length;
+  for (let t = 0; t < Math.max(1, numColors); t++) {
+    ctx.strokeStyle = palette[t % numColors] || '#0099ff';
+    ctx.lineWidth = 1; ctx.beginPath();
+    for (const [fx, fy, nx2, ny2, hasE, tool2] of moves) {
+      if (hasE && (tool2 === t || numColors === 1)) { ctx.moveTo(tx(fx), ty(fy)); ctx.lineTo(tx(nx2), ty(ny2)); }
+    }
+    ctx.stroke();
+  }
+
+  // Label layer/line count
+  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(moves.length.toLocaleString() + ' moves', W - 6, H - 5);
+}
+
+function _draw3mfPlaceholder(canvas, name) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = canvas.clientWidth || 320, H = canvas.clientHeight || 130;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#0a0a12'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,107,53,0.12)'; ctx.fillRect(0, 0, W, H);
+  ctx.font = 'bold 13px Inter,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff6b35'; ctx.fillText('.3mf — binary preview not available', W / 2, H / 2 - 8);
+  ctx.font = '11px Inter,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillText(name, W / 2, H / 2 + 12);
+}
+
+// ── Part preview in manage panel ──────────────────────────────────────────────
+async function updatePartPreview(p) {
+  const section = document.getElementById('part-preview-section');
+  const canvas  = document.getElementById('part-preview-canvas');
+  const label   = document.getElementById('part-preview-label');
+
+  const item = p.currentItem || p.queue.find(i => i.status === 'queued');
+  if (!item || !item.file) { section.style.display = 'none'; return; }
+
+  section.style.display = '';
+  label.textContent = item.name;
+
+  const ext = item.name.split('.').pop().toLowerCase();
+  if (ext === '3mf') {
+    _draw3mfPlaceholder(canvas, item.name);
+  } else {
+    const text = await item.file.text();
+    const colors = item.colors || (item.color ? [item.color, item.color2].filter(Boolean) : null);
+    renderGcodePreview(canvas, text, colors);
+  }
 }
 function pStart()   { const p = printers.get(managedId); if (!p || p.isPrinting) return; const n = p.queue.find(i=>i.status==='queued'); if (n) startPrint(p, n); }
 function pPause()   { const p = printers.get(managedId); if (p) pausePrint(p); }
