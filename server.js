@@ -46,6 +46,13 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  // ── Probe endpoint: GET /server.json ──────────────────────────────────────
+  if (req.method === 'GET' && url.pathname === '/server.json') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ printara: true, version: 1 }));
+    return;
+  }
+
   // ── FTP upload proxy: POST /ftp-upload?ip=&pin=&filename= ──────────────────
   if (req.method === 'POST' && url.pathname === '/ftp-upload') {
     const ip       = url.searchParams.get('ip');
@@ -87,6 +94,38 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     }
+    return;
+  }
+
+  // ── Printer HTTP proxy: /printer-proxy/{ip}{path} ─────────────────────────
+  // Forwards requests to LAN printers so HTTPS-hosted pages avoid mixed-content blocks.
+  const proxyMatch = url.pathname.match(/^\/printer-proxy\/([^/]+)(\/.*)?$/);
+  if (proxyMatch) {
+    const printerIp   = decodeURIComponent(proxyMatch[1]);
+    const printerPath = (proxyMatch[2] || '/') + (url.search || '');
+
+    const forward = ['content-type', 'content-length', 'x-api-key', 'authorization'];
+    const fwdHeaders = {};
+    for (const h of forward) { if (req.headers[h]) fwdHeaders[h] = req.headers[h]; }
+
+    const proxyReq = http.request(
+      { hostname: printerIp, port: 80, path: printerPath, method: req.method, headers: fwdHeaders },
+      proxyRes => {
+        const out = {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
+        };
+        if (proxyRes.headers['content-type']) out['content-type'] = proxyRes.headers['content-type'];
+        res.writeHead(proxyRes.statusCode, out);
+        proxyRes.pipe(res);
+      },
+    );
+    proxyReq.on('error', e => {
+      console.error('[proxy]', printerIp, e.message);
+      if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    req.pipe(proxyReq);
     return;
   }
 

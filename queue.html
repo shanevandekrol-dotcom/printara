@@ -322,10 +322,12 @@ const printers = new Map();
 let managedId = null;
 let addType = 'usb';
 
-// True when served from server.js over local HTTP — enables MQTT proxy + FTP proxy
-const HAS_LOCAL_SERVER = window.location.protocol === 'http:' &&
-                         !!window.location.port &&
-                         window.location.port !== '80';
+// Async probe — resolves true if server.js proxy endpoints are reachable.
+// Works from https://printara.test (Herd → nginx → server.js) AND http://IP:3000 (direct).
+const _serverProbe = fetch('/server.json', { signal: AbortSignal.timeout(1500), cache: 'no-store' })
+  .then(r => r.ok ? r.json() : null)
+  .then(d => !!(d && d.printara))
+  .catch(() => false);
 
 // ── Printer factory ────────────────────────────────────────────────────────────
 function mkP(o = {}) {
@@ -529,7 +531,10 @@ function discUSB(p) {
 // ── HTTP (OctoPrint / Moonraker) ───────────────────────────────────────────────
 async function connectHttp(p) {
   if (!p.ip) throw new Error('Enter the printer IP');
-  p.baseUrl = 'http://' + p.ip.replace(/^https?:\/\//, '');
+  const ip = p.ip.replace(/^https?:\/\//, '');
+  // Route through the local server.js proxy so HTTPS pages can reach LAN printers
+  // without mixed-content blocks. Falls back to direct http:// when not running locally.
+  p.baseUrl = (await _serverProbe) ? '/printer-proxy/' + ip : 'http://' + ip;
   const h = p.apiKey ? { 'X-Api-Key': p.apiKey } : {};
 
   if (p.type === 'octoprint') {
@@ -644,15 +649,18 @@ async function connectBambu(p) {
     return;
   }
 
-  // Browser: use server.js MQTT proxy (when running locally) or direct WebSocket MQTT
-  if (HAS_LOCAL_SERVER) return connectBambuProxy(p, ip);
+  // Browser: use server.js proxy if available, else direct WebSocket MQTT
+  if (await _serverProbe) return connectBambuProxy(p, ip);
+  if (window.location.protocol === 'https:')
+    throw new Error('Run "node server.js" in the project folder first, then reconnect');
   return connectBambuWs(p, ip);
 }
 
 // MQTT via server.js WebSocket proxy (works on any device on the local network)
 function connectBambuProxy(p, ip) {
   return new Promise((res, rej) => {
-    const url = `ws://${window.location.host}/mqtt-proxy?ip=${encodeURIComponent(ip)}&pin=${encodeURIComponent(p.pin)}`;
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${wsProto}//${window.location.host}/mqtt-proxy?ip=${encodeURIComponent(ip)}&pin=${encodeURIComponent(p.pin)}`;
     const ws  = new WebSocket(url);
     let ok = false;
 
@@ -801,11 +809,11 @@ async function startPrint(p, item) {
       return;
     }
     if (window.ftpBridge) {
-      startBambuFtp(p, item);          // Electron: native FTP bridge
-    } else if (HAS_LOCAL_SERVER) {
-      startBambuServerFtp(p, item);    // Local server: FTP proxy via /ftp-upload
+      startBambuFtp(p, item);                                          // Electron native
+    } else if (await _serverProbe) {
+      startBambuServerFtp(p, item);                                    // server.js FTP proxy
     } else {
-      startBambuGcode(p, item);        // Browser-only fallback: stream gcode line-by-line
+      startBambuGcode(p, item);                                        // last resort: line-by-line
     }
     return;
   }
