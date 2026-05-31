@@ -100,6 +100,11 @@ function getQueuePath() {
   return path.join(__dirname, '..', 'queue.html');
 }
 
+function getLoginPath() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'login.html');
+  return path.join(__dirname, '..', 'login.html');
+}
+
 function getPreloadPath() {
   return path.join(__dirname, 'preload.js');
 }
@@ -163,7 +168,7 @@ function createWindow() {
   mainWindow.webContents.session.setPermissionCheckHandler((_wc, permission) => permission === 'serial' ? true : null);
   mainWindow.webContents.session.setDevicePermissionHandler(d => d.deviceType === 'serial');
 
-  mainWindow.loadFile(getQueuePath());
+  mainWindow.loadFile(getLoginPath());
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
