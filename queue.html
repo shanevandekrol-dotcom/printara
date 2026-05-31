@@ -390,6 +390,21 @@
 
 <div id="toasts"></div>
 <script>
+// ── Auth guard (runs first, before everything else) ───────────────────────────
+;(function() {
+  try {
+    const raw = sessionStorage.getItem('printara_session');
+    if (!raw) { window.location.replace('login.html'); return; }
+    const s = JSON.parse(raw);
+    if (!s || !s.ts || Date.now() - s.ts > 12 * 60 * 60 * 1000) {
+      sessionStorage.removeItem('printara_session');
+      window.location.replace('login.html');
+    }
+  } catch (_) {
+    window.location.replace('login.html');
+  }
+})();
+
 // ── State ──────────────────────────────────────────────────────────────────────
 const printers = new Map();
 let managedId = null;

@@ -10,12 +10,12 @@
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html,body{width:100%;height:100%;overflow:hidden;background:#060610;font-family:'Inter',sans-serif;color:#e8e8e8}
-    #loginCanvas{position:fixed;inset:0;z-index:0}
+    #loginCanvas{position:fixed;inset:0;z-index:0;opacity:0.85;}
 
     /* ── Form wrap ── */
     #loginWrap{
       position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-      z-index:10;width:320px;opacity:0;transition:opacity 1s ease;
+      z-index:10;width:320px;opacity:1;
     }
 
     /* Logo */
@@ -369,10 +369,8 @@ function tick() {
       // Animation complete
       animDone=true;
       canvas.style.transition='opacity 2s ease';
-      canvas.style.opacity='0.2';
-      const w=document.getElementById('loginWrap');
-      w.style.opacity='1';
-      setTimeout(()=>{ document.getElementById('siEmail')?.focus(); }, 900);
+      canvas.style.opacity='0.18';
+      setTimeout(()=>{ document.getElementById('siEmail')?.focus(); }, 300);
       return;
     }
   }
