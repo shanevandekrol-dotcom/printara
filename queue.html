@@ -899,38 +899,48 @@ async function startPrint(p, item) {
   item.status = 'printing'; renderPQ();
 }
 
-async function startBambuFtp(p, item) {
-  try {
-    item.status = 'uploading'; renderPQ();
-    toast('Uploading to printer via FTP…', 'info');
-
-    // Read file → ArrayBuffer → send to main process for FTP upload
-    const buf = await item.file.arrayBuffer();
-    const ip  = p.ip.replace(/^https?:\/\//, '');
-    await window.ftpBridge.upload(ip, p.pin, item.name, buf);
-
-    toast('Upload done — starting print', 'success');
-    item.status = 'printing'; renderPQ();
-
-    // Build AMS mapping from item's color slots (or fallback to printer's colors)
-    const _amsCols = item.colors || p.filamentColors || [];
-    const amsMapping = _amsCols.map((_, i) => ({ ams: 0, slot: i }));
-
-    bPub(p, {
+// Build the correct MQTT print command for the file type.
+// .3mf → project_file (gcode lives inside the zip at Metadata/plate_1.gcode)
+// .gcode / anything else → gcode_file (file is already sliced gcode on SD card)
+function bambuPrintCmd(ip, item, amsMapping) {
+  const ext = item.name.split('.').pop().toLowerCase();
+  if (ext === '3mf') {
+    return {
       print: {
-        sequence_id: '0',
-        command: 'project_file',
+        sequence_id: '0', command: 'project_file',
         param: 'Metadata/plate_1.gcode',
         subtask_name: item.name.replace(/\.[^.]+$/, ''),
         url: `ftp://${ip}/model/${item.name}`,
-        timelapse: false,
-        bed_leveling: true,
-        flow_cali: false,
-        vibration_cali: false,
-        layer_inspect: false,
+        timelapse: false, bed_leveling: true,
+        flow_cali: false, vibration_cali: false, layer_inspect: false,
         ams_mapping: amsMapping,
       },
-    });
+    };
+  }
+  // Plain gcode — stream directly from SD card path
+  return {
+    print: {
+      sequence_id: '0', command: 'gcode_file',
+      param: `model/${item.name}`,
+      url: `ftp://${ip}/model/${item.name}`,
+      timelapse: false, bed_leveling: true,
+      flow_cali: false, vibration_cali: false, layer_inspect: false,
+      ams_mapping: amsMapping,
+    },
+  };
+}
+
+async function startBambuFtp(p, item) {
+  try {
+    item.status = 'uploading'; renderPQ();
+    toast('Uploading to printer via LAN…', 'info');
+    const ip  = p.ip.replace(/^https?:\/\//, '');
+    const buf = await item.file.arrayBuffer();
+    await window.ftpBridge.upload(ip, p.pin, item.name, buf);
+    toast('Upload done — starting print', 'success');
+    item.status = 'printing'; renderPQ();
+    const amsMapping = (item.colors || p.filamentColors || []).map((_, i) => ({ ams: 0, slot: i }));
+    bPub(p, bambuPrintCmd(ip, item, amsMapping));
   } catch (e) {
     toast('FTP upload failed: ' + e.message, 'error');
     item.status = 'error'; p.isPrinting = false; p.status = 'idle';
@@ -941,7 +951,7 @@ async function startBambuFtp(p, item) {
 async function startBambuServerFtp(p, item) {
   try {
     item.status = 'uploading'; renderPQ();
-    toast('Uploading to printer…', 'info');
+    toast('Uploading to printer via LAN…', 'info');
     const ip  = p.ip.replace(/^https?:\/\//, '');
     const buf = await item.file.arrayBuffer();
     const r   = await fetch(
@@ -951,19 +961,8 @@ async function startBambuServerFtp(p, item) {
     if (!r.ok) { const t = await r.text(); throw new Error(t); }
     toast('Upload done — starting print', 'success');
     item.status = 'printing'; renderPQ();
-    const _amsCols2 = item.colors || p.filamentColors || [];
-    const amsMapping = _amsCols2.map((_, i) => ({ ams: 0, slot: i }));
-    bPub(p, {
-      print: {
-        sequence_id: '0', command: 'project_file',
-        param: 'Metadata/plate_1.gcode',
-        subtask_name: item.name.replace(/\.[^.]+$/, ''),
-        url: `ftp://${ip}/model/${item.name}`,
-        timelapse: false, bed_leveling: true,
-        flow_cali: false, vibration_cali: false, layer_inspect: false,
-        ams_mapping: amsMapping,
-      },
-    });
+    const amsMapping = (item.colors || p.filamentColors || []).map((_, i) => ({ ams: 0, slot: i }));
+    bPub(p, bambuPrintCmd(ip, item, amsMapping));
   } catch (e) {
     toast('Upload failed: ' + e.message, 'error');
     item.status = 'error'; p.isPrinting = false; p.status = 'idle';
